@@ -16,13 +16,13 @@
 ///////////////////////////////////////////////////////////////////////////////////
 
 /*
-Adxl355Demo.cpp
+Adxl357Demo.cpp
 
-This file contains the sources for the ADXL355 demo.
+This file contains the sources for the ADXL357 demo.
 */
 
-#include "Adxl355Demo.h"
-#include "./ui_Adxl355Demo.h"
+#include "Adxl357Demo.h"
+#include "./ui_Adxl357Demo.h"
 
 
 #include <QMessageBox>
@@ -42,12 +42,12 @@ This file contains the sources for the ADXL355 demo.
 //!************************************************************************
 //! Constructor
 //!************************************************************************
-Adxl355Demo::Adxl355Demo
+Adxl357Demo::Adxl357Demo
     (
     QWidget* aParent        //!< parent widget
     )
     : QMainWindow( aParent )
-    , mMainUi( new Ui::Adxl355Demo )
+    , mMainUi( new Ui::Adxl357Demo )
     , mI2cBusChannel( 0 )
     , mI2cIsOpen( false )
     , mAccelX( 0 )
@@ -62,9 +62,9 @@ Adxl355Demo::Adxl355Demo
     mMainUi->setupUi( this );
 
     //****************************************
-    // ADXL355 setup
+    // ADXL357 setup
     //****************************************
-    bool adxl355InitOk = false;
+    bool adxl357InitOk = false;
     std::string i2cPath = "/dev/i2c-" + std::to_string( I2C_BUS_MEMS );
     mI2cBusChannel = ::open( i2cPath.c_str(), O_RDWR );
 
@@ -74,74 +74,74 @@ Adxl355Demo::Adxl355Demo
     }
     else
     {
-        QMessageBox::critical( this, "ADXL355 Demo",
+        QMessageBox::critical( this, "ADXL357 Demo",
                                "Could not open I2C bus " + QString::fromStdString( i2cPath ),
                                QMessageBox::Ok );
     }
 
 
-    mAdxl355Instance = Adxl355::getInstance();
+    mAdxl357Instance = Adxl357::getInstance();
 
-    if( !mAdxl355Instance )
+    if( !mAdxl357Instance )
     {
-        QMessageBox::critical( this, "ADXL355 Demo",
-                               "Could not create an instance of ADXL355",
+        QMessageBox::critical( this, "ADXL357 Demo",
+                               "Could not create an instance of ADXL357",
                                QMessageBox::Ok );
     }
     else
     {
-        bool initStatus = mAdxl355Instance->init( mI2cBusChannel, Adxl355::ADXL355_357_I2C_ADDRESS_PRIMARY );
+        bool initStatus = mAdxl357Instance->init( mI2cBusChannel, Adxl357::ADXL355_357_I2C_ADDRESS_PRIMARY );
 
         if( !initStatus )
         {
-            QMessageBox::critical( this, "ADXL355 Demo",
-                                   "Could not initialize ADXL355",
+            QMessageBox::critical( this, "ADXL357 Demo",
+                                   "Could not initialize ADXL357",
                                    QMessageBox::Ok );
         }
         else
         {
-            adxl355InitOk = true;
-            uint8_t revId = mAdxl355Instance->getRevId();
+            adxl357InitOk = true;
+            uint8_t revId = mAdxl357Instance->getRevId();
 
-            if( Adxl355::REV_ID != revId )
+            if( Adxl357::REV_ID != revId )
             {
-                QMessageBox::information( this, "ADXL355 Demo",
-                                       "The detected ADXL355 chip revision ID is " + QString::number( revId ),
+                QMessageBox::information( this, "ADXL357 Demo",
+                                       "The detected ADXL357 chip revision ID is " + QString::number( revId ),
                                        QMessageBox::Ok );
             }
 
-            if( !mAdxl355Instance->reset() )
+            if( !mAdxl357Instance->reset() )
             {
-                QMessageBox::critical( this, "ADXL355 Demo",
-                                       "Could not reset ADXL355",
+                QMessageBox::critical( this, "ADXL357 Demo",
+                                       "Could not reset ADXL357",
                                        QMessageBox::Ok );
             }
 
             // enter measurement mode
-            mAdxl355Instance->enableStandbyMode( false );
+            mAdxl357Instance->enableStandbyMode( false );
 
             bool selfTestPassed = false;
             double typCoeff = 1;
-            bool selfTestStatus = mAdxl355Instance->runSelfTest( &selfTestPassed, &typCoeff );
+            bool selfTestStatus = mAdxl357Instance->runSelfTest( &selfTestPassed, &typCoeff );
 
             if( !selfTestStatus )
             {
-                QMessageBox::critical( this, "ADXL355 Demo",
-                                       "Could not run ADXL355 self test",
+                QMessageBox::critical( this, "ADXL357 Demo",
+                                       "Could not run ADXL357 self test",
                                        QMessageBox::Ok );
             }
             else
             {
                 if( !selfTestPassed )
                 {
-                    QMessageBox::warning( this, "ADXL355 Demo",
-                                           "ADXL355 self test failed",
+                    QMessageBox::warning( this, "ADXL357 Demo",
+                                           "ADXL357 self test failed",
                                            QMessageBox::Ok );
                 }
             }
 
             // lower bandwidth for inclinometer
-            mAdxl355Instance->setOdr( Adxl355::ODR_SETTING_7_8125 );
+            mAdxl357Instance->setOdr( Adxl357::ODR_SETTING_7_8125 );
         }
     }
 
@@ -157,7 +157,7 @@ Adxl355Demo::Adxl355Demo
     QObject::connect( mMainUi->exitButton, SIGNAL( clicked() ), qApp, SLOT( quit() ) );
     QObject::connect( mMainUi->exitButton, SIGNAL( pressed() ), qApp, SLOT( quit() ) );
 
-    if( adxl355InitOk )
+    if( adxl357InitOk )
     {
         //****************************************
         // accelerations readings
@@ -182,7 +182,7 @@ Adxl355Demo::Adxl355Demo
         //****************************************
         mGlWidget = new GlWidget( this );
         mMainUi->glGraphTilt->addWidget( mGlWidget );
-        connect( this, &Adxl355Demo::tiltAnglesChanged, mGlWidget, &GlWidget::setAngles );
+        connect( this, &Adxl357Demo::tiltAnglesChanged, mGlWidget, &GlWidget::setAngles );
     }
     else
     {
@@ -194,7 +194,7 @@ Adxl355Demo::Adxl355Demo
 //!************************************************************************
 //! Destructor
 //!************************************************************************
-Adxl355Demo::~Adxl355Demo()
+Adxl357Demo::~Adxl357Demo()
 {
     if( mI2cIsOpen )
     {
@@ -210,17 +210,17 @@ Adxl355Demo::~Adxl355Demo()
 //!
 //! @returns: nothing
 //!************************************************************************
-/* slot */ void Adxl355Demo::readAccelerations()
+/* slot */ void Adxl357Demo::readAccelerations()
 {
-    mAdxl355Instance = Adxl355::getInstance();
+    mAdxl357Instance = Adxl357::getInstance();
 
-    if( mAdxl355Instance )
+    if( mAdxl357Instance )
     {
         double ax = 0;
         double ay = 0;
         double az = 0;
 
-        if( mAdxl355Instance->getAccelerationsOnAllAxes( &ax, &ay, &az ) )
+        if( mAdxl357Instance->getAccelerationsOnAllAxes( &ax, &ay, &az ) )
         {
             mAccelX = ax;
             mAccelY = ay;
@@ -247,15 +247,15 @@ Adxl355Demo::~Adxl355Demo()
 //!
 //! @returns: nothing
 //!************************************************************************
-/* slot */ void Adxl355Demo::readTemperature()
+/* slot */ void Adxl357Demo::readTemperature()
 {
-    mAdxl355Instance = Adxl355::getInstance();
+    mAdxl357Instance = Adxl357::getInstance();
 
-    if( mAdxl355Instance )
+    if( mAdxl357Instance )
     {
         double tempCelsius = 0;
 
-        if( mAdxl355Instance->getTemperatureValue( &tempCelsius ) )
+        if( mAdxl357Instance->getTemperatureValue( &tempCelsius ) )
         {
             mTemperature = tempCelsius;
             updateContent();
@@ -269,7 +269,7 @@ Adxl355Demo::~Adxl355Demo()
 //!
 //! @returns: nothing
 //!************************************************************************
-void Adxl355Demo::updateContent()
+void Adxl357Demo::updateContent()
 {
     // accelerations
     mMainUi->accelXLabel->setText( QString::number( mAccelX, 'f', 3 ) + " [g]" );

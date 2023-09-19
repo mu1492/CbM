@@ -16,23 +16,23 @@
 ///////////////////////////////////////////////////////////////////////////////////
 
 /*
-Adxl355.cpp
+Adxl357.cpp
 
-This file contains the sources for the ADXL355 driver.
+This file contains the sources for the ADXL357 driver.
 */
 
-#include "Adxl355.h"
+#include "Adxl357.h"
 
 #include <cmath>
 #include <unistd.h>
 
 
-Adxl355* Adxl355::sInstance = nullptr;
+Adxl357* Adxl357::sInstance = nullptr;
 
 //!************************************************************************
 //! Constructor
 //!************************************************************************
-Adxl355::Adxl355()
+Adxl357::Adxl357()
     : Adxl355Adxl357Common( ACCELERATION_RANGE_DEFAULT )
 {   
     enableStandbyMode( mStandbyMode );
@@ -50,7 +50,7 @@ Adxl355::Adxl355()
 //!************************************************************************
 //! Destructor
 //!************************************************************************
-Adxl355::~Adxl355()
+Adxl357::~Adxl357()
 {
 }
 
@@ -60,11 +60,11 @@ Adxl355::~Adxl355()
 //!
 //! @returns the instance of the object
 //!************************************************************************
-Adxl355* Adxl355::getInstance()
+Adxl357* Adxl357::getInstance()
 {
     if( !sInstance )
     {
-        sInstance = new Adxl355;
+        sInstance = new Adxl357;
     }
 
     return sInstance;
@@ -81,7 +81,7 @@ Adxl355* Adxl355::getInstance()
 //!
 //! @returns true if the offset can be temperature compensated
 //!************************************************************************
-/* virtual */ bool Adxl355::compensateOffsetTemperature
+/* virtual */ bool Adxl357::compensateOffsetTemperature
     (
     const Axis aAxis,           //!< axis whose offset to compensate
     double*    aAcceleration    //!< acceleration value [g]
@@ -93,9 +93,9 @@ Adxl355* Adxl355::getInstance()
     {
         double tempFactor = ( mTemperatureC - TEMP_25_C ) / ( TEMP_MAX_C - TEMP_MIN_C );
 
-        const double OFFSET_TEMP_SLOPE_X = 1.7e-3;
-        const double OFFSET_TEMP_SLOPE_Y = 1.4e-3;
-        const double OFFSET_TEMP_SLOPE_Z = 5.3e-3;
+        const double OFFSET_TEMP_SLOPE_X = 9.2e-3;
+        const double OFFSET_TEMP_SLOPE_Y = 2.5e-3;
+        const double OFFSET_TEMP_SLOPE_Z = 11.7e-3;
 
         switch( aAxis )
         {
@@ -122,11 +122,11 @@ Adxl355* Adxl355::getInstance()
 
 
 //!************************************************************************
-//! Get the acceleration range (+/-2g, +/-4g, +/-8g)
+//! Get the acceleration range (+/-10g, +/-20g, +/-40g)
 //!
 //! @returns true if the range can be read
 //!************************************************************************
-/* virtual */ bool Adxl355::getAccelerationRange
+/* virtual */ bool Adxl357::getAccelerationRange
     (
     AccelerationRange* aRange   //!< acceleration range
     )
@@ -146,16 +146,16 @@ Adxl355* Adxl355::getInstance()
             switch( rangeReg & RANGE_MASK )
             {
                 case RANGE_HIGH:
-                    mRange = ACCELERATION_RANGE_8G;
+                    mRange = ACCELERATION_RANGE_40G;
                     break;
 
                 case RANGE_MID:
-                    mRange = ACCELERATION_RANGE_4G;
+                    mRange = ACCELERATION_RANGE_20G;
                     break;
 
                 case RANGE_LOW:
                 default:
-                    mRange = ACCELERATION_RANGE_2G;
+                    mRange = ACCELERATION_RANGE_10G;
                     break;
             }
 
@@ -189,7 +189,7 @@ Adxl355* Adxl355::getInstance()
 //!
 //! @returns true if the VRE offsets can be calculated
 //!************************************************************************
-/* virtual */ bool Adxl355::getVibrationRectificationOffset
+/* virtual */ bool Adxl357::getVibrationRectificationOffset
     (
     const Axis          aAxis,              //!< axis whose RMS acceleration to use
     const AxisDirection aDirection,         //!< axis direction (up or down)
@@ -207,45 +207,19 @@ Adxl355* Adxl355::getInstance()
 
         switch( mRange )
         {
-            case ACCELERATION_RANGE_2G:
+            case ACCELERATION_RANGE_10G:
                 switch( aAxis )
                 {
                     case AXIS_X:
-                        status = calculateLogisticResponse( aAccelerationRms, -0.003387892238, 0.762025827078, 2.327224480732, 2.608152634853, aVreOffset );
+                        status = calculateLogisticResponse( aAccelerationRms, -0.001919727981, 0.217609249213, 9.731554477629, 6.116005440274, aVreOffset );
                         break;
 
                     case AXIS_Y:
-                        status = calculateLogisticResponse( aAccelerationRms, -0.006530658233, 0.778025380974, 2.376010415638, 2.433043292342, aVreOffset );
+                        status = calculateLogisticResponse( aAccelerationRms, -0.001550167510, 0.198414457317, 9.434585787665, 6.688368562989, aVreOffset );
                         break;
 
                     case AXIS_Z:
-                        status = calculateLogisticResponse( aAccelerationRms, -0.003490868874, 0.738195887319, 2.237467044143, 2.601541031491, aVreOffset );
-                        break;
-
-                    default:
-                        break;
-                }
-
-                if( *aVreOffset < 0 )
-                {
-                    *aVreOffset = 0;
-                }
-
-                break;
-
-            case ACCELERATION_RANGE_4G:
-                switch( aAxis )
-                {
-                    case AXIS_X:
-                        status = calculateLogisticResponse( aAccelerationRms, -0.002441409250, 0.449933128610, 2.770492856421, 2.355049625902, aVreOffset );
-                        break;
-
-                    case AXIS_Y:
-                        status = calculateLogisticResponse( aAccelerationRms, -0.004066466239, 0.474686690249, 2.919276442989, 2.178870821243, aVreOffset );
-                        break;
-
-                    case AXIS_Z:
-                        status = calculateLogisticResponse( aAccelerationRms, -0.004083989181, 0.421584153623, 2.474323937293, 2.414902709699, aVreOffset );
+                        status = calculateLogisticResponse( aAccelerationRms, -0.000435171407, 0.225172255134, 9.270673016754, 5.847468282143, aVreOffset );
                         break;
 
                     default:
@@ -253,27 +227,43 @@ Adxl355* Adxl355::getInstance()
                 }
                 break;
 
-            case ACCELERATION_RANGE_8G:
+            case ACCELERATION_RANGE_20G:
                 switch( aAxis )
                 {
                     case AXIS_X:
-                        {
-                            const size_t N = 5;
-                            double coeff[N] = { 0, 0.011192614610, -0.023773450384, 0.007641457220, -0.000501873938 };
-                            status = calculatePoly( aAccelerationRms, N - 1, coeff, aVreOffset );
-                        }
+                        status = calculateLogisticResponse( aAccelerationRms, -0.000681837591, 0.118229758682, 9.763380406589, 5.827221614997, aVreOffset );
                         break;
 
                     case AXIS_Y:
-                        {
-                            const size_t N = 5;
-                            double coeff[N] = { 0, 0.010962006334, -0.022905976909, 0.007452124822, -0.000493187357 };
-                            status = calculatePoly( aAccelerationRms, N - 1, coeff, aVreOffset );
-                        }
+                        status = calculateLogisticResponse( aAccelerationRms, -0.000802545611, 0.108697330553, 9.587252285022, 6.258936784771, aVreOffset );
                         break;
 
                     case AXIS_Z:
-                        status = calculateLogisticResponse( aAccelerationRms, -0.002570580185, 0.631237734825, 7.100727783110, 4.549522536146, aVreOffset );
+                        status = calculateLogisticResponse( aAccelerationRms, -0.000936917290, 0.118963080719, 9.432676623109, 5.350328799490, aVreOffset );
+                        break;
+
+                    default:
+                        break;
+                }
+                break;
+
+            case ACCELERATION_RANGE_40G:
+                switch( aAxis )
+                {
+                    case AXIS_X:
+                        status = calculateLogisticResponse( aAccelerationRms, 0.000147932470, 0.022411997457, 11.596902595386, 2.763330139277, aVreOffset );
+                        break;
+
+                    case AXIS_Y:
+                        status = calculateLogisticResponse( aAccelerationRms, 0.000201538679, 0.025314811789, 14.197584562587, 3.676910631922, aVreOffset );
+                        break;
+
+                    case AXIS_Z:
+                        {
+                            const size_t N = 5;
+                            double coeff[N] = { 0, -0.001014811412, 0.000316393698, -0.000028638302, 0.000000882947 };
+                            status = calculatePoly( aAccelerationRms, N - 1, coeff, aVreOffset );
+                        }
                         break;
 
                     default:
@@ -303,7 +293,7 @@ Adxl355* Adxl355::getInstance()
 //!
 //! @returns true if the self test can be performed
 //!************************************************************************
-/* virtual */ bool Adxl355::runSelfTest
+/* virtual */ bool Adxl357::runSelfTest
     (
     bool*   aResult,        //!< true if self test passed
     double* aTypCoef        //!< how close to typical ones test values were found (0 is ideal)
@@ -332,24 +322,16 @@ Adxl355* Adxl355::getInstance()
         // wait a short time until the sensor electrostatically produces the test output
         usleep( 1000 );
 
-        double testAccelX = 0;
-        double testAccelY = 0;
         double testAccelZ = 0;
-        status = getAccelerationsOnAllAxes( &testAccelX, &testAccelY, &testAccelZ );
+        status = getAccelerationOnAxis( AXIS_Z, &testAccelZ );
 
         if( status )
         {
-            *aResult = ( 0.1 < testAccelX ) && ( testAccelX < 0.6 )
-                    && ( 0.1 < testAccelY ) && ( testAccelY < 0.6 )
-                    && ( 0.5 < testAccelZ ) && ( testAccelZ < 3.0 );
+            *aResult = ( 0.5 < testAccelZ ) && ( testAccelZ < 3.0 );
 
-            const double TEST_ACCEL_X_TYP_G = 0.3;
-            const double TEST_ACCEL_Y_TYP_G = 0.3;
-            const double TEST_ACCEL_Z_TYP_G = 1.5;
+            const double TEST_ACCEL_Z_TYP_G = 1.25;
             // the smaller the better
-            *aTypCoef = fabs( testAccelX - TEST_ACCEL_X_TYP_G )
-                      * fabs( testAccelY - TEST_ACCEL_Y_TYP_G )
-                      * fabs( testAccelZ - TEST_ACCEL_Z_TYP_G );
+            *aTypCoef = fabs( testAccelZ - TEST_ACCEL_Z_TYP_G );
         }
     }
 
@@ -371,19 +353,19 @@ Adxl355* Adxl355::getInstance()
 
 
 //!************************************************************************
-//! Set the acceleration range (+/-2g, +/-4g, +/-8g)
+//! Set the acceleration range (+/-10g, +/-20g, +/-40g)
 //!
 //! If not already enabled, the function enters standby mode, then restores
 //! it before return.
 //!
 //! @returns true if the acceleration range can be set
 //!************************************************************************
-/* virtual */ bool Adxl355::setAccelerationRange
+/* virtual */ bool Adxl357::setAccelerationRange
     (
     const AccelerationRange aRange      //!< acceleration range
     )
 {
-    bool status = ( aRange >= ACCELERATION_RANGE_2G ) && ( aRange <= ACCELERATION_RANGE_8G );
+    bool status = ( aRange >= ACCELERATION_RANGE_10G ) && ( aRange <= ACCELERATION_RANGE_40G );
     bool standbyMode = false;
 
     ////////////////////////////
@@ -417,15 +399,15 @@ Adxl355* Adxl355::getInstance()
 
             switch( aRange )
             {
-                case ACCELERATION_RANGE_8G:
+                case ACCELERATION_RANGE_40G:
                     rangeReg |= RANGE_HIGH;
                     break;
 
-                case ACCELERATION_RANGE_4G:
+                case ACCELERATION_RANGE_20G:
                     rangeReg |= RANGE_MID;
                     break;
 
-                case ACCELERATION_RANGE_2G:
+                case ACCELERATION_RANGE_10G:
                 default:
                     rangeReg |= RANGE_LOW;
                     break;
@@ -473,13 +455,13 @@ Adxl355* Adxl355::getInstance()
 //!
 //! @returns nothing
 //!************************************************************************
-/* virtual */ void Adxl355::updateLsbToG()
+/* virtual */ void Adxl357::updateLsbToG()
 {
     double tempFactor = ( mTemperatureC - TEMP_25_C ) / ( TEMP_MAX_C - TEMP_MIN_C );
 
-    const double SENS_SLOPE_X = 0.72e-2;
-    const double SENS_SLOPE_Y = 0.72e-2;
-    const double SENS_SLOPE_Z = 0.3e-2;
+    const double SENS_SLOPE_X = 0.57e-2;
+    const double SENS_SLOPE_Y = 0.53e-2;
+    const double SENS_SLOPE_Z = 0.21e-2;
 
     double sensFactorX = 1 + tempFactor * SENS_SLOPE_X;
     double sensFactorY = 1 + tempFactor * SENS_SLOPE_Y;
@@ -487,23 +469,23 @@ Adxl355* Adxl355::getInstance()
 
     switch( mRange )
     {
-        case ACCELERATION_RANGE_8G:
-            sensFactorX *= ACCELERATION_SENSITIVITY_RANGE_8G;
-            sensFactorY *= ACCELERATION_SENSITIVITY_RANGE_8G;
-            sensFactorZ *= ACCELERATION_SENSITIVITY_RANGE_8G;
+        case ACCELERATION_RANGE_40G:
+            sensFactorX *= ACCELERATION_SENSITIVITY_RANGE_40G;
+            sensFactorY *= ACCELERATION_SENSITIVITY_RANGE_40G;
+            sensFactorZ *= ACCELERATION_SENSITIVITY_RANGE_40G;
             break;
 
-        case ACCELERATION_RANGE_4G:
-            sensFactorX *= ACCELERATION_SENSITIVITY_RANGE_4G;
-            sensFactorY *= ACCELERATION_SENSITIVITY_RANGE_4G;
-            sensFactorZ *= ACCELERATION_SENSITIVITY_RANGE_4G;
+        case ACCELERATION_RANGE_20G:
+            sensFactorX *= ACCELERATION_SENSITIVITY_RANGE_20G;
+            sensFactorY *= ACCELERATION_SENSITIVITY_RANGE_20G;
+            sensFactorZ *= ACCELERATION_SENSITIVITY_RANGE_20G;
             break;
 
-        case ACCELERATION_RANGE_2G:
+        case ACCELERATION_RANGE_10G:
         default:
-            sensFactorX *= ACCELERATION_SENSITIVITY_RANGE_2G;
-            sensFactorY *= ACCELERATION_SENSITIVITY_RANGE_2G;
-            sensFactorZ *= ACCELERATION_SENSITIVITY_RANGE_2G;
+            sensFactorX *= ACCELERATION_SENSITIVITY_RANGE_10G;
+            sensFactorY *= ACCELERATION_SENSITIVITY_RANGE_10G;
+            sensFactorZ *= ACCELERATION_SENSITIVITY_RANGE_10G;
             break;
     }
 

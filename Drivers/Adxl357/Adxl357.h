@@ -16,37 +16,37 @@
 ///////////////////////////////////////////////////////////////////////////////////
 
 /*
-Adxl355.h
+Adxl357.h
 
-This file contains the definitions for the ADXL355 driver.
+This file contains the definitions for the ADXL357 driver.
 */
 
-#ifndef Adxl355_h
-#define Adxl355_h
+#ifndef Adxl357_h
+#define Adxl357_h
 
 #include "Adxl355Adxl357Common.h"
 
 
 //************************************************************************
-// Class for handling the ADXL355 driver
+// Class for handling the ADXL357 driver
 //************************************************************************
-class Adxl355 : public Adxl355Adxl357Common
+class Adxl357 : public Adxl355Adxl357Common
 {
     //************************************************************************
     // constants and types
     //************************************************************************
     private:
-        const AccelerationRange ACCELERATION_RANGE_DEFAULT = ACCELERATION_RANGE_2G;
+        const AccelerationRange ACCELERATION_RANGE_DEFAULT = ACCELERATION_RANGE_10G;
 
     //************************************************************************
     // functions
     //************************************************************************
     public:
-        Adxl355();
+        Adxl357();
 
-        ~Adxl355();
+        ~Adxl357();
 
-        static Adxl355* getInstance();
+        static Adxl357* getInstance();
 
         bool getAccelerationRange
             (
@@ -85,8 +85,8 @@ class Adxl355 : public Adxl355Adxl357Common
     // variables
     //************************************************************************
     private:
-        static Adxl355*     sInstance;          //!< singleton
+        static Adxl357*     sInstance;          //!< singleton
 };
 
-#endif // Adxl355_h
+#endif // Adxl357_h
 
