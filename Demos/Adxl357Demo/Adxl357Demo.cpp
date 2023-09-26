@@ -50,6 +50,7 @@ Adxl357Demo::Adxl357Demo
     , mMainUi( new Ui::Adxl357Demo )
     , mI2cBusChannel( 0 )
     , mI2cIsOpen( false )
+    , mAdxl357Instance( nullptr )
     , mAccelX( 0 )
     , mAccelY( 0 )
     , mAccelZ( 0 )
@@ -77,8 +78,9 @@ Adxl357Demo::Adxl357Demo
         QMessageBox::critical( this, "ADXL357 Demo",
                                "Could not open I2C bus " + QString::fromStdString( i2cPath ),
                                QMessageBox::Ok );
+        delete mMainUi;
+        exit( 0 );
     }
-
 
     mAdxl357Instance = Adxl357::getInstance();
 
@@ -86,7 +88,14 @@ Adxl357Demo::Adxl357Demo
     {
         QMessageBox::critical( this, "ADXL357 Demo",
                                "Could not create an instance of ADXL357",
-                               QMessageBox::Ok );
+                               QMessageBox::Ok );        
+        if( mI2cIsOpen )
+        {
+            ::close( mI2cBusChannel );
+        }
+
+        delete mMainUi;
+        exit( 0 );
     }
     else
     {
@@ -97,10 +106,18 @@ Adxl357Demo::Adxl357Demo
             QMessageBox::critical( this, "ADXL357 Demo",
                                    "Could not initialize ADXL357",
                                    QMessageBox::Ok );
+            if( mI2cIsOpen )
+            {
+                ::close( mI2cBusChannel );
+            }
+
+            delete mMainUi;
+            exit( 0 );
         }
         else
         {
-            adxl357InitOk = true;
+            adxl357InitOk = true;            
+            mAdxl357Instance->initData();
             uint8_t revId = mAdxl357Instance->getRevId();
 
             if( Adxl357::REV_ID != revId )

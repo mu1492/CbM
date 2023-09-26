@@ -23,6 +23,8 @@ This file contains the sources for the OpenGL widget.
 
 #include "GlWidget.h"
 
+#include <GL/gl.h>
+
 #include <cmath>
 
 #include <QCoreApplication>

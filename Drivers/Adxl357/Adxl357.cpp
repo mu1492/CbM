@@ -35,15 +35,6 @@ Adxl357* Adxl357::sInstance = nullptr;
 Adxl357::Adxl357()
     : Adxl355Adxl357Common( ACCELERATION_RANGE_DEFAULT )
 {   
-    enableStandbyMode( mStandbyMode );
-    enableSelfTestMode( mSelfTestMode );
-    setTemperatureOff( mTemperatureOff );
-    setAccelerationRange( mRange );
-    updateLsbToG();
-    setActivityThreshold( mActivityThreshold );
-    updateOdrBySelection();
-    updateHpfBySelection();    
-    setFifoSamplesSize( mFifoSamplesCount );
 }
 
 
@@ -282,6 +273,25 @@ Adxl357* Adxl357::getInstance()
     }
 
     return status;
+}
+
+
+//!************************************************************************
+//! Data initalizer
+//!
+//! @returns nothing
+//!************************************************************************
+void Adxl357::initData()
+{
+    enableStandbyMode( mStandbyMode );
+    enableSelfTestMode( mSelfTestMode );
+    setTemperatureOff( mTemperatureOff );
+    setAccelerationRange( mRange );
+    updateLsbToG();
+    setActivityThreshold( mActivityThreshold );
+    updateOdrBySelection();
+    updateHpfBySelection();
+    setFifoSamplesSize( mFifoSamplesCount );
 }
 
 

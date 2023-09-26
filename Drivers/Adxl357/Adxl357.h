@@ -61,6 +61,8 @@ class Adxl357 : public Adxl355Adxl357Common
             double*             aVreOffset          //!< calculated VRE offset [g]
             );
 
+        void initData();
+
         bool runSelfTest
             (
             bool*   aResult,                //!< true if self test passed

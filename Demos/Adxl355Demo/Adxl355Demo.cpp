@@ -77,8 +77,9 @@ Adxl355Demo::Adxl355Demo
         QMessageBox::critical( this, "ADXL355 Demo",
                                "Could not open I2C bus " + QString::fromStdString( i2cPath ),
                                QMessageBox::Ok );
+        delete mMainUi;
+        exit( 0 );
     }
-
 
     mAdxl355Instance = Adxl355::getInstance();
 
@@ -87,6 +88,13 @@ Adxl355Demo::Adxl355Demo
         QMessageBox::critical( this, "ADXL355 Demo",
                                "Could not create an instance of ADXL355",
                                QMessageBox::Ok );
+        if( mI2cIsOpen )
+        {
+            ::close( mI2cBusChannel );
+        }
+
+        delete mMainUi;
+        exit( 0 );
     }
     else
     {
@@ -97,10 +105,18 @@ Adxl355Demo::Adxl355Demo
             QMessageBox::critical( this, "ADXL355 Demo",
                                    "Could not initialize ADXL355",
                                    QMessageBox::Ok );
+            if( mI2cIsOpen )
+            {
+                ::close( mI2cBusChannel );
+            }
+
+            delete mMainUi;
+            exit( 0 );
         }
         else
         {
             adxl355InitOk = true;
+            mAdxl355Instance->initData();
             uint8_t revId = mAdxl355Instance->getRevId();
 
             if( Adxl355::REV_ID != revId )
