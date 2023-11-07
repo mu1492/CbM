@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SpectralViewer</class>
+ <widget class="QMainWindow" name="SpectralViewer">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>458</width>
+    <height>347</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>SpectralViewer</string>
+  </property>
+  <widget class="QWidget" name="centralwidget"/>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>458</width>
+     <height>22</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuSettings">
+    <property name="title">
+     <string>&amp;Settings</string>
+    </property>
+    <addaction name="actionAccelerometer"/>
+    <addaction name="actionFrequencyAnalysis"/>
+    <addaction name="actionVibrationMonitoring"/>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>&amp;Help</string>
+    </property>
+    <addaction name="actionAbout"/>
+   </widget>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>&amp;File</string>
+    </property>
+    <addaction name="actionExit"/>
+   </widget>
+   <widget class="QMenu" name="menuPlots">
+    <property name="title">
+     <string>&amp;Plots</string>
+    </property>
+    <addaction name="actionSelectPlots"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuSettings"/>
+   <addaction name="menuPlots"/>
+   <addaction name="menuHelp"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionAbout">
+   <property name="text">
+    <string>&amp;About</string>
+   </property>
+  </action>
+  <action name="actionExit">
+   <property name="text">
+    <string>&amp;Exit</string>
+   </property>
+  </action>
+  <action name="actionVibrationMonitoring">
+   <property name="text">
+    <string>&amp;Vibration Monitoring</string>
+   </property>
+  </action>
+  <action name="actionAccelerometer">
+   <property name="text">
+    <string>&amp;Accelerometer</string>
+   </property>
+  </action>
+  <action name="actionFrequencyAnalysis">
+   <property name="text">
+    <string>&amp;Frequency Analysis</string>
+   </property>
+  </action>
+  <action name="actionPlotOptions">
+   <property name="text">
+    <string>&amp;Plot options</string>
+   </property>
+  </action>
+  <action name="actionSelectPlots">
+   <property name="text">
+    <string>&amp;Select Plots</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

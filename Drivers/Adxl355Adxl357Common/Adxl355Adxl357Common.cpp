@@ -1033,6 +1033,17 @@ double Adxl355Adxl357Common::getOdrLpfCorner() const
 
 
 //!************************************************************************
+//! Get the Output Data Rate setting
+//!
+//! @returns The ODR setting
+//!************************************************************************
+Adxl355Adxl357Common::OdrSetting Adxl355Adxl357Common::getOdrSetting() const
+{
+    return mOdrSetting;
+}
+
+
+//!************************************************************************
 //! Get the chip revision ID
 //!
 //! @returns The chip revision ID

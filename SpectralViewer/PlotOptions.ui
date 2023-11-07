@@ -1,0 +1,368 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PlotOptionsDialog</class>
+ <widget class="QDialog" name="PlotOptionsDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>450</width>
+    <height>354</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Select Plots</string>
+  </property>
+  <widget class="QPushButton" name="OkButton">
+   <property name="geometry">
+    <rect>
+     <x>190</x>
+     <y>310</y>
+     <width>71</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>OK</string>
+   </property>
+  </widget>
+  <widget class="QGroupBox" name="XaxisGroupBox">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>20</y>
+     <width>121</width>
+     <height>281</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string>X axis</string>
+   </property>
+   <widget class="QCheckBox" name="XaxisTransientCheckBox">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>30</y>
+      <width>90</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Transient</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="XaxisFftCheckBox">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>60</y>
+      <width>51</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>FFT</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="XaxisSrsCheckBox">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>120</y>
+      <width>51</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>SRS</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="XaxisCepstrumCheckBox">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>150</y>
+      <width>90</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Cepstrum</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="XaxisPeriodogramCheckBox">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>90</y>
+      <width>111</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Periodogram</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="XaxisSelectAllButton">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>200</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Select all</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="XaxisDeselectAllButton">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>240</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Deselect all</string>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QGroupBox" name="YaxisGroupBox">
+   <property name="geometry">
+    <rect>
+     <x>160</x>
+     <y>20</y>
+     <width>121</width>
+     <height>281</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string>Y axis</string>
+   </property>
+   <widget class="QCheckBox" name="YaxisTransientCheckBox">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>30</y>
+      <width>90</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Transient</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="YaxisFftCheckBox">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>60</y>
+      <width>51</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>FFT</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="YaxisSrsCheckBox">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>120</y>
+      <width>51</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>SRS</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="YaxisCepstrumCheckBox">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>150</y>
+      <width>90</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Cepstrum</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="YaxisPeriodogramCheckBox">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>90</y>
+      <width>111</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Periodogram</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="YaxisSelectAllButton">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>200</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Select all</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="YaxisDeselectAllButton">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>240</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Deselect all</string>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QGroupBox" name="ZaxisGroupBox">
+   <property name="geometry">
+    <rect>
+     <x>300</x>
+     <y>20</y>
+     <width>121</width>
+     <height>281</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string>Z axis</string>
+   </property>
+   <widget class="QCheckBox" name="ZaxisTransientCheckBox">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>30</y>
+      <width>90</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Transient</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="ZaxisFftCheckBox">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>60</y>
+      <width>51</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>FFT</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="ZaxisSrsCheckBox">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>120</y>
+      <width>51</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>SRS</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="ZaxisCepstrumCheckBox">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>150</y>
+      <width>90</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Cepstrum</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="ZaxisPeriodogramCheckBox">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>90</y>
+      <width>111</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Periodogram</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="ZaxisSelectAllButton">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>200</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Select all</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="ZaxisDeselectAllButton">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>240</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Deselect all</string>
+    </property>
+   </widget>
+  </widget>
+ </widget>
+ <tabstops>
+  <tabstop>XaxisTransientCheckBox</tabstop>
+  <tabstop>XaxisFftCheckBox</tabstop>
+  <tabstop>XaxisPeriodogramCheckBox</tabstop>
+  <tabstop>XaxisSrsCheckBox</tabstop>
+  <tabstop>XaxisCepstrumCheckBox</tabstop>
+  <tabstop>XaxisSelectAllButton</tabstop>
+  <tabstop>XaxisDeselectAllButton</tabstop>
+  <tabstop>YaxisTransientCheckBox</tabstop>
+  <tabstop>YaxisFftCheckBox</tabstop>
+  <tabstop>YaxisPeriodogramCheckBox</tabstop>
+  <tabstop>YaxisSrsCheckBox</tabstop>
+  <tabstop>YaxisCepstrumCheckBox</tabstop>
+  <tabstop>YaxisSelectAllButton</tabstop>
+  <tabstop>YaxisDeselectAllButton</tabstop>
+  <tabstop>ZaxisTransientCheckBox</tabstop>
+  <tabstop>ZaxisFftCheckBox</tabstop>
+  <tabstop>ZaxisPeriodogramCheckBox</tabstop>
+  <tabstop>ZaxisSrsCheckBox</tabstop>
+  <tabstop>ZaxisCepstrumCheckBox</tabstop>
+  <tabstop>ZaxisSelectAllButton</tabstop>
+  <tabstop>ZaxisDeselectAllButton</tabstop>
+  <tabstop>OkButton</tabstop>
+ </tabstops>
+ <resources/>
+ <connections/>
+</ui>

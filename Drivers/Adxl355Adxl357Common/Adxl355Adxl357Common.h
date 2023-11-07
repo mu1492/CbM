@@ -397,6 +397,8 @@ class Adxl355Adxl357Common
 
         double getOdrLpfCorner() const;
 
+        OdrSetting getOdrSetting() const;
+
         uint8_t getRevId() const;
 
         bool getStandbyMode
