@@ -1,7 +1,5 @@
 <RCC>
     <qresource prefix="/">
-        <file>Res/CUDA.png</file>
-        <file>Res/Arm.png</file>
         <file>Res/Linux.png</file>
         <file>Res/adxl35x_xyz.png</file>
     </qresource>

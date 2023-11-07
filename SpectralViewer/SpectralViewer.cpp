@@ -136,7 +136,7 @@ SpectralViewer::SpectralViewer
     if( !mAccelInstance )
     {
         QMessageBox::critical( this, APP_NAME,
-                               "Could not create an instance of ADXL355",
+                               "Could not create an instance of " + ACCEL_NAME,
                                QMessageBox::Ok );
         if( mI2cIsOpen )
         {
@@ -153,7 +153,7 @@ SpectralViewer::SpectralViewer
         if( !initStatus )
         {
             QMessageBox::critical( this, APP_NAME,
-                                   "Could not initialize ADXL355",
+                                   "Could not initialize " + ACCEL_NAME,
                                    QMessageBox::Ok );
             if( mI2cIsOpen )
             {
@@ -170,7 +170,7 @@ SpectralViewer::SpectralViewer
             if( !mAccelInstance->reset() )
             {
                 QMessageBox::critical( this, APP_NAME,
-                                       "Could not reset ADXL355",
+                                       "Could not reset " + ACCEL_NAME,
                                        QMessageBox::Ok );
             }
 
@@ -464,20 +464,14 @@ uint16_t SpectralViewer::getDaqDelayUs()
 
 #if __ARM_ARCH_ISA_A64
     builtString += "ARM64";
-    mAboutUi->ArmLogo->show();
 #elif __ARM_ARCH
     builtString += "ARM32";
-    mAboutUi->ArmLogo->show();
 #else
     builtString += "non-ARM";
-    mAboutUi->ArmLogo->hide();
 #endif
 
 #if BUILD_CUDA
     builtString += " with CUDA enabled";
-    mAboutUi->CudaLogo->show();
-#else
-    mAboutUi->CudaLogo->hide();
 #endif
 
     mAboutUi->BuiltLabel->setText( builtString );

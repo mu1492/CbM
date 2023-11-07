@@ -69,48 +69,10 @@ Spectral Viewer</string>
     </rect>
    </property>
    <property name="text">
-    <string>Built for ARM64 with NVIDIA CUDA support</string>
+    <string>Built for ARM64 with CUDA enabled</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignCenter</set>
-   </property>
-  </widget>
-  <widget class="QLabel" name="ArmLogo">
-   <property name="geometry">
-    <rect>
-     <x>80</x>
-     <y>160</y>
-     <width>71</width>
-     <height>20</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string/>
-   </property>
-   <property name="pixmap">
-    <pixmap resource="SpectralViewer.qrc">:/Res/Arm.png</pixmap>
-   </property>
-   <property name="scaledContents">
-    <bool>true</bool>
-   </property>
-  </widget>
-  <widget class="QLabel" name="CudaLogo">
-   <property name="geometry">
-    <rect>
-     <x>240</x>
-     <y>140</y>
-     <width>91</width>
-     <height>51</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string/>
-   </property>
-   <property name="pixmap">
-    <pixmap resource="SpectralViewer.qrc">:/Res/CUDA.png</pixmap>
-   </property>
-   <property name="scaledContents">
-    <bool>true</bool>
    </property>
   </widget>
   <widget class="QLabel" name="LinuxLogo">
