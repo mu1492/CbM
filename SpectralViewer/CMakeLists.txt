@@ -77,11 +77,13 @@ if(USE_CUDA)
     ##################################################
     # The build includes support for the following NVidia GPU CCs (Compute Capabilities):
     # - 5.3 (e.g. Jetson Nano)
-    # - 8.7 (e.g. Orin Nano)
+    # - 7.2 (e.g. Jetson Xavier NX)                                   
+    # - 8.7 (e.g. Jetson Orin Nano)
     # Add one more line in the next section for each new target architecture XX, e.g.
     #    -gencode=arch=compute_XX,code=sm_XX
     ##################################################
     set(CMAKE_CUDA_FLAGS            "-gencode=arch=compute_53,code=sm_53 \
+                                     -gencode=arch=compute_72,code=sm_72 \
                                      -gencode=arch=compute_87,code=sm_87 \
                                      -gencode=arch=compute_87,code=compute_87" )
 
@@ -116,7 +118,8 @@ set(OpenGL_GL_PREFERENCE LEGACY)
 #########################
 # Packages
 #########################
-find_package(Qt5 COMPONENTS Widgets OpenGL OpenGLExtensions REQUIRED)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets OpenGL OpenGLExtensions)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets OpenGL OpenGLExtensions)
 
 if(USE_CUDA)
     find_package(CUDA REQUIRED)
@@ -198,10 +201,18 @@ if(USE_CUDA)
         )
 endif()
 
-if(NOT USE_CUDA)
-    add_executable(SpectralViewer ${PRJ_SOURCES_LIST})
+if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
+    if(NOT USE_CUDA)
+        qt_add_executable(SpectralViewer MANUAL_FINALIZATION ${PRJ_SOURCES_LIST})
+    else()
+        qt_add_executable(SpectralViewerCuda MANUAL_FINALIZATION ${PRJ_SOURCES_LIST})
+    endif()
 else()
-    add_executable(SpectralViewerCuda ${PRJ_SOURCES_LIST})
+    if(NOT USE_CUDA)
+        add_executable(SpectralViewer ${PRJ_SOURCES_LIST})
+    else()
+        add_executable(SpectralViewerCuda ${PRJ_SOURCES_LIST})
+    endif()
 endif()
 
 if(USE_CUDA)
@@ -212,15 +223,22 @@ endif()
 # Linker and libraries
 #########################
 if(NOT USE_CUDA)
-    target_link_libraries(SpectralViewer PRIVATE Qt5::Widgets Qt5::OpenGL Qt5::OpenGLExtensions ${OPENGL_LIBRARIES})
+    target_link_libraries(SpectralViewer PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::OpenGL Qt${QT_VERSION_MAJOR}::OpenGLExtensions ${OPENGL_LIBRARIES})
 else()
     target_compile_options(SpectralViewerCuda PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                            -std=c++11
                            -m64
-                           -O2
                            -Xcompiler
                            >)
 
     set(CUDA_LIBRARIES "libcuda.so")
-    target_link_libraries(SpectralViewerCuda PRIVATE Qt5::Widgets Qt5::OpenGL Qt5::OpenGLExtensions ${OPENGL_LIBRARIES} ${CUDA_LIBRARIES} -lcufft)
+    target_link_libraries(SpectralViewerCuda PRIVATE Qt5::Widgets Qt5::OpenGL Qt5::OpenGLExtensions ${OPENGL_LIBRARIES} ${CUDA_LIBRARIES} -lcufft -lcudla)
+endif()
+
+if(QT_VERSION_MAJOR EQUAL 6)
+    if(NOT USE_CUDA)
+        qt_finalize_executable(SpectralViewer)
+    else()
+        qt_finalize_executable(SpectralViewerCuda)
+    endif()
 endif()

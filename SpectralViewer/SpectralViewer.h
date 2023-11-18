@@ -97,6 +97,8 @@ class SpectralViewer : public QMainWindow
         typedef enum : uint8_t
         {
             I2C_BUS_MEMS_RASPBERRY_PI_4             = 1,
+            I2C_BUS_MEMS_NVIDIA_JETSON_NANO         = 1,
+            I2C_BUS_MEMS_NVIDIA_JETSON_XAVIER_NX    = 8,
             I2C_BUS_MEMS_NVIDIA_JETSON_ORIN_NANO    = 7
         }I2c_Bus_Mems;
 

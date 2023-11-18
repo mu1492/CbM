@@ -25,6 +25,7 @@ This file contains the sources for drawing CbM information.
 
 #include "VibrationHandler.h"
 
+#include <QPainterPath>
 #include <QTimer>
 
 
