@@ -81,8 +81,8 @@ class SpectralViewer : public QMainWindow
             uint8_t minor;                  //!< minor part
         }Version;
 
-        const Version CUDA_VER_MIN = { 6, 5 };  //!< CUDA >= 6.5
-        const Version CUDA_CC_MIN  = { 5, 3 };  //!< Compute Capability >= 5.3
+        const Version CUDA_VER_MIN = { 11, 0 };  //!< CUDA >= 11.0
+        const Version CUDA_CC_MIN  = { 6, 2 };  //!< Compute Capability >= 6.2
 
         typedef struct
         {
@@ -97,7 +97,6 @@ class SpectralViewer : public QMainWindow
         typedef enum : uint8_t
         {
             I2C_BUS_MEMS_RASPBERRY_PI_4             = 1,
-            I2C_BUS_MEMS_NVIDIA_JETSON_NANO         = 1,
             I2C_BUS_MEMS_NVIDIA_JETSON_XAVIER_NX    = 8,
             I2C_BUS_MEMS_NVIDIA_JETSON_ORIN_NANO    = 7
         }I2c_Bus_Mems;

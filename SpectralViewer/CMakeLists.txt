@@ -76,14 +76,12 @@ if(USE_CUDA)
 
     ##################################################
     # The build includes support for the following NVidia GPU CCs (Compute Capabilities):
-    # - 5.3 (e.g. Jetson Nano)
     # - 7.2 (e.g. Jetson Xavier NX)                                   
     # - 8.7 (e.g. Jetson Orin Nano)
     # Add one more line in the next section for each new target architecture XX, e.g.
     #    -gencode=arch=compute_XX,code=sm_XX
     ##################################################
-    set(CMAKE_CUDA_FLAGS            "-gencode=arch=compute_53,code=sm_53 \
-                                     -gencode=arch=compute_72,code=sm_72 \
+    set(CMAKE_CUDA_FLAGS            "-gencode=arch=compute_72,code=sm_72 \
                                      -gencode=arch=compute_87,code=sm_87 \
                                      -gencode=arch=compute_87,code=compute_87" )
 
@@ -228,6 +226,7 @@ else()
     target_compile_options(SpectralViewerCuda PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                            -std=c++11
                            -m64
+                           -O2
                            -Xcompiler
                            >)
 
