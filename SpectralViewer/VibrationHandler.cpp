@@ -612,9 +612,12 @@ VibrationHandler::VibrationMonitoringSettingsTriaxial& VibrationHandler::getTria
                 mFftThreadY.compute( mFFtValues.yFft, FrequencyAnalysis::FFT_SENSE_DIRECT, 0, false );
                 mFftThreadZ.compute( mFFtValues.zFft, FrequencyAnalysis::FFT_SENSE_DIRECT, 0, false );
 
-                mSrsThreadX.compute( mSrsFeed.xArray );
-                mSrsThreadY.compute( mSrsFeed.yArray );
-                mSrsThreadZ.compute( mSrsFeed.zArray );
+                if( faInstance->getSrsIsRunning() )
+                {
+                    mSrsThreadX.compute( mSrsFeed.xArray );
+                    mSrsThreadY.compute( mSrsFeed.yArray );
+                    mSrsThreadZ.compute( mSrsFeed.zArray );
+                }
             }
         mMutex.unlock();
     }

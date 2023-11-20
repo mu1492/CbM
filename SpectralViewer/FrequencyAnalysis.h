@@ -152,6 +152,8 @@ class FrequencyAnalysis
 
         SrsCoefficients getSrsCoefficients() const;
 
+        bool& getSrsIsRunning();
+
         SrsParameters& getSrsParameters();
 
         WindowFunction& getWindowFunction();
@@ -197,6 +199,7 @@ class FrequencyAnalysis
 
         SrsParameters               mSrsParameters;         //!< SRS parameters
         SrsCoefficients             mSrsCoefficients;       //!< SRS coefficients
+        bool                        mSrsIsRunning;          //!< true if SRS is running
 };
 
 #endif // FrequencyAnalysis_h

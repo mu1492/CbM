@@ -186,6 +186,11 @@ class SpectralViewer : public QMainWindow
             int aIndex      //!< index
             );
 
+        void handleChangedFreqAnalysisSrsInUse
+            (
+            bool aEnabled   //!< enabled status
+            );
+
         void handleChangedFreqAnalysisSrsModel
             (
             int aIndex      //!< index

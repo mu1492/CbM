@@ -97,6 +97,7 @@ FrequencyAnalysis::FrequencyAnalysis()
     , mFftSizeValue( FFT_SIZE_VALUES.at( mFftSizeIndex ) )
     , mFftBinWidth( 1 )
     , mFftTimeGate( 1 / mFftBinWidth )
+    , mSrsIsRunning( false )
 {    
     mWindowFunction.setFftSize( mFftSizeValue );
 
@@ -389,6 +390,17 @@ double FrequencyAnalysis::getFftTimeGate() const
 FrequencyAnalysis::SrsCoefficients FrequencyAnalysis::getSrsCoefficients() const
 {
     return mSrsCoefficients;
+}
+
+
+//!************************************************************************
+//! Get the address of SRS running status
+//!
+//! @returns The SRS running status address
+//!************************************************************************
+bool& FrequencyAnalysis::getSrsIsRunning()
+{
+    return mSrsIsRunning;
 }
 
 

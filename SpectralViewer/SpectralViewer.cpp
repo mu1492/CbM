@@ -582,6 +582,51 @@ uint16_t SpectralViewer::getDaqDelayUs()
 
 
 //!************************************************************************
+//! Handle for changing the SRS usage status
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleChangedFreqAnalysisSrsInUse
+    (
+    bool aEnabled   //!< enabled status
+    )
+{
+    mFreqAnalysisInstance->getSrsIsRunning() = aEnabled;
+
+    mFrequencyAnalysisUi->SrsMethodComboBox->setEnabled( aEnabled );
+    mFrequencyAnalysisUi->SrsZetaSpinBox->setEnabled( aEnabled );
+
+    if( !aEnabled )
+    {
+        if( mPlotXsrs )
+        {
+            mPlotXsrs->close();
+        }
+
+        mPlotOptions.xAxis.at( Plot::PLOT_TYPE_SRS ) = false;
+
+        if( mPlotYsrs )
+        {
+            mPlotYsrs->close();
+        }
+
+        mPlotOptions.yAxis.at( Plot::PLOT_TYPE_SRS ) = false;
+
+        if( mPlotZsrs )
+        {
+            mPlotZsrs->close();
+        }
+
+        mPlotOptions.zAxis.at( Plot::PLOT_TYPE_SRS ) = false;
+    }
+
+    updatePlotOptionsButtonsX();
+    updatePlotOptionsButtonsY();
+    updatePlotOptionsButtonsZ();
+}
+
+
+//!************************************************************************
 //! Handle for changing the SRS model in frequency analysis settings
 //!
 //! @returns nothing
@@ -1208,6 +1253,11 @@ uint16_t SpectralViewer::getDaqDelayUs()
     updatePlotOptionsCheckBoxesY();
     updatePlotOptionsCheckBoxesZ();
 
+    bool isSrsRunning = mFreqAnalysisInstance->getSrsIsRunning();
+    mPlotOptionsUi->XaxisSrsCheckBox->setEnabled( isSrsRunning );
+    mPlotOptionsUi->YaxisSrsCheckBox->setEnabled( isSrsRunning );
+    mPlotOptionsUi->ZaxisSrsCheckBox->setEnabled( isSrsRunning );
+
     mPlotOptionsDlg.exec();
 }
 
@@ -1738,7 +1788,7 @@ uint16_t SpectralViewer::getDaqDelayUs()
     mPlotOptions.xAxis.at( Plot::PLOT_TYPE_TRANSIENT ) = true;
     mPlotOptions.xAxis.at( Plot::PLOT_TYPE_FFT ) = true;
     mPlotOptions.xAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) = true;
-    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_SRS ) = true;
+    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_SRS ) = mFreqAnalysisInstance->getSrsIsRunning();
     mPlotOptions.xAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) = true;
 
     updatePlotOptionsCheckBoxesX();
@@ -1774,7 +1824,7 @@ uint16_t SpectralViewer::getDaqDelayUs()
     mPlotOptions.yAxis.at( Plot::PLOT_TYPE_TRANSIENT ) = true;
     mPlotOptions.yAxis.at( Plot::PLOT_TYPE_FFT ) = true;
     mPlotOptions.yAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) = true;
-    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_SRS ) = true;
+    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_SRS ) = mFreqAnalysisInstance->getSrsIsRunning();
     mPlotOptions.yAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) = true;
 
     updatePlotOptionsCheckBoxesY();
@@ -1810,7 +1860,7 @@ uint16_t SpectralViewer::getDaqDelayUs()
     mPlotOptions.zAxis.at( Plot::PLOT_TYPE_TRANSIENT ) = true;
     mPlotOptions.zAxis.at( Plot::PLOT_TYPE_FFT ) = true;
     mPlotOptions.zAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) = true;
-    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_SRS ) = true;
+    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_SRS ) = mFreqAnalysisInstance->getSrsIsRunning();
     mPlotOptions.zAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) = true;
 
     updatePlotOptionsCheckBoxesZ();
@@ -2106,6 +2156,9 @@ void SpectralViewer::initFreqAnalysisDialogControls()
         //////////////
         /// SRS
         //////////////
+        bool isSrsRunning = mFreqAnalysisInstance->getSrsIsRunning();
+        mFrequencyAnalysisUi->SrsInUsecheckBox->setChecked( isSrsRunning );
+
         for( const auto& i : FrequencyAnalysis::SRS_METHOD_NAMES )
         {
             mFrequencyAnalysisUi->SrsMethodComboBox->addItem( QString::fromStdString( i.second ) );
@@ -2113,6 +2166,9 @@ void SpectralViewer::initFreqAnalysisDialogControls()
 
         FrequencyAnalysis::SrsZeta zeta = mFreqAnalysisInstance->getSrsParameters().zeta;
         mFrequencyAnalysisUi->SrsZetaSpinBox->setValue( zeta.crtValue );
+
+        mFrequencyAnalysisUi->SrsMethodComboBox->setEnabled( isSrsRunning );
+        mFrequencyAnalysisUi->SrsZetaSpinBox->setEnabled( isSrsRunning );
     }
 
     //////////////
@@ -2125,6 +2181,7 @@ void SpectralViewer::initFreqAnalysisDialogControls()
     //////////////
     /// SRS
     //////////////
+    connect( mFrequencyAnalysisUi->SrsInUsecheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedFreqAnalysisSrsInUse(bool) ) );
     connect( mFrequencyAnalysisUi->SrsMethodComboBox, SIGNAL( currentIndexChanged(int) ), this, SLOT( handleChangedFreqAnalysisSrsModel(int) ) );
     connect( mFrequencyAnalysisUi->SrsZetaSpinBox, SIGNAL( valueChanged(double) ), this, SLOT( handleChangedFreqAnalysisSrsZeta(double) ) );
 
@@ -2414,7 +2471,7 @@ void SpectralViewer::updatePlotOptionsButtonsX()
     bool allSelected = mPlotOptions.xAxis.at( Plot::PLOT_TYPE_TRANSIENT )
                     && mPlotOptions.xAxis.at( Plot::PLOT_TYPE_FFT )
                     && mPlotOptions.xAxis.at( Plot::PLOT_TYPE_PERIODOGRAM )
-                    && mPlotOptions.xAxis.at( Plot::PLOT_TYPE_SRS )
+                    && ( mPlotOptions.xAxis.at( Plot::PLOT_TYPE_SRS ) || !mFreqAnalysisInstance->getSrsIsRunning() )
                     && mPlotOptions.xAxis.at( Plot::PLOT_TYPE_CEPSTRUM );
 
     bool haveOne = mPlotOptions.xAxis.at( Plot::PLOT_TYPE_TRANSIENT )
@@ -2439,7 +2496,7 @@ void SpectralViewer::updatePlotOptionsButtonsY()
     bool allSelected = mPlotOptions.yAxis.at( Plot::PLOT_TYPE_TRANSIENT )
                     && mPlotOptions.yAxis.at( Plot::PLOT_TYPE_FFT )
                     && mPlotOptions.yAxis.at( Plot::PLOT_TYPE_PERIODOGRAM )
-                    && mPlotOptions.yAxis.at( Plot::PLOT_TYPE_SRS )
+                    && ( mPlotOptions.yAxis.at( Plot::PLOT_TYPE_SRS ) || !mFreqAnalysisInstance->getSrsIsRunning() )
                     && mPlotOptions.yAxis.at( Plot::PLOT_TYPE_CEPSTRUM );
 
     bool haveOne = mPlotOptions.yAxis.at( Plot::PLOT_TYPE_TRANSIENT )
@@ -2464,7 +2521,7 @@ void SpectralViewer::updatePlotOptionsButtonsZ()
     bool allSelected = mPlotOptions.zAxis.at( Plot::PLOT_TYPE_TRANSIENT )
                     && mPlotOptions.zAxis.at( Plot::PLOT_TYPE_FFT )
                     && mPlotOptions.zAxis.at( Plot::PLOT_TYPE_PERIODOGRAM )
-                    && mPlotOptions.zAxis.at( Plot::PLOT_TYPE_SRS )
+                    && ( mPlotOptions.zAxis.at( Plot::PLOT_TYPE_SRS ) || !mFreqAnalysisInstance->getSrsIsRunning() )
                     && mPlotOptions.zAxis.at( Plot::PLOT_TYPE_CEPSTRUM );
 
     bool haveOne = mPlotOptions.zAxis.at( Plot::PLOT_TYPE_TRANSIENT )
