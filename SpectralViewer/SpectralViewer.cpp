@@ -148,7 +148,13 @@ SpectralViewer::SpectralViewer
     }
     else
     {
-        bool initStatus = mAccelInstance->init( mI2cBusChannel, Adxl355::ADXL355_357_I2C_ADDRESS_PRIMARY );
+        bool initStatus = mAccelInstance->init( mI2cBusChannel,
+#if BUILD_ADXL355
+                                                Adxl355::ADXL355_357_I2C_ADDRESS_PRIMARY
+#elif BUILD_ADXL357
+                                                Adxl357::ADXL355_357_I2C_ADDRESS_PRIMARY
+#endif
+                                                );
 
         if( !initStatus )
         {
@@ -496,7 +502,7 @@ uint16_t SpectralViewer::getDaqDelayUs()
         Adxl355Adxl357Common::AccelerationRange range = static_cast<Adxl355Adxl357Common::AccelerationRange>( aIndex +
 #if BUILD_ADXL355
             Adxl355Adxl357Common::ACCELERATION_RANGE_2G
-#elif BUILD_ADXL355
+#elif BUILD_ADXL357
             Adxl355Adxl357Common::ACCELERATION_RANGE_10G
 #endif
         );
