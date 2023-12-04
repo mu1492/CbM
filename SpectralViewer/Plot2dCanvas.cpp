@@ -16,16 +16,16 @@
 ///////////////////////////////////////////////////////////////////////////////////
 
 /*
-PlotCanvas.cpp
+Plot2dCanvas.cpp
 
-This file contains the sources for drawing plots.
+This file contains the sources for drawing 2D plots.
 */
 
 
-#include "PlotCanvas.h"
+#include "Plot2dCanvas.h"
 
 #include "Numeric.h"
-#include "Plot.h"
+#include "Plot2d.h"
 #include "SrsThread.h"
 
 #include <float.h>
@@ -33,20 +33,19 @@ This file contains the sources for drawing plots.
 #include <algorithm>
 #include <cmath>
 
-#include <QDebug>  // todo - remove later
 #include <QPainter>
 
 
 //!************************************************************************
 //! Constructor
 //!************************************************************************
-PlotCanvas::PlotCanvas
+Plot2dCanvas::Plot2dCanvas
     (
-    QWidget*    aParent,    //!< parent widget
-    Plot&       aParentPlot //!< parent Plot object
+    QWidget* aParent,           //!< parent widget
+    Plot2d&  aParentPlot2d      //!< parent Plot2d object
     )
     : QWidget( aParent )
-    , mParentPlot( aParentPlot )
+    , mParentPlot2d( aParentPlot2d )
     // widget size
     , mSizeW( width() )
     , mSizeH( height() )
@@ -70,7 +69,7 @@ PlotCanvas::PlotCanvas
     setBackgroundRole( QPalette::Base );
     setAutoFillBackground( true );
 
-    if( Plot::PLOT_TYPE_SRS == mParentPlot.getPlotType() )
+    if( Plot2d::PLOT_2D_TYPE_SRS == mParentPlot2d.getPlot2dType() )
     {
         mGridLinesV = 4;
     }
@@ -82,7 +81,7 @@ PlotCanvas::PlotCanvas
 //!
 //! @returns true if first number is smaller than second
 //!************************************************************************
-bool PlotCanvas::compareBinFnc
+bool Plot2dCanvas::compareBinFnc
     (
     VibrationHandler::FftBin x,   //!< first object
     VibrationHandler::FftBin y    //!< second object
@@ -97,7 +96,7 @@ bool PlotCanvas::compareBinFnc
 //!
 //! @returns true if first number is smaller than second
 //!************************************************************************
-bool PlotCanvas::compareCepstrumFnc
+bool Plot2dCanvas::compareCepstrumFnc
     (
     VibrationHandler::FftCepstrum x,   //!< first object
     VibrationHandler::FftCepstrum y    //!< second object
@@ -112,7 +111,7 @@ bool PlotCanvas::compareCepstrumFnc
 //!
 //! @returns true if first number is smaller than second
 //!************************************************************************
-bool PlotCanvas::comparePsdFnc
+bool Plot2dCanvas::comparePsdFnc
     (
     VibrationHandler::FftPsd x,   //!< first object
     VibrationHandler::FftPsd y    //!< second object
@@ -127,7 +126,7 @@ bool PlotCanvas::comparePsdFnc
 //!
 //! @returns true if first number is smaller than second
 //!************************************************************************
-bool PlotCanvas::compareSrsFnc
+bool Plot2dCanvas::compareSrsFnc
     (
     VibrationHandler::Srs x,   //!< first object
     VibrationHandler::Srs y    //!< second object
@@ -142,7 +141,7 @@ bool PlotCanvas::compareSrsFnc
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::drawGridLinesH()
+void Plot2dCanvas::drawGridLinesH()
 {
     QPainter painter( &mPicture );
 
@@ -169,7 +168,7 @@ void PlotCanvas::drawGridLinesH()
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::drawGridLinesV()
+void Plot2dCanvas::drawGridLinesV()
 {
     QPainter painter( &mPicture );
 
@@ -187,7 +186,7 @@ void PlotCanvas::drawGridLinesV()
                               QPoint( crtX, mSizeH - BOTTOM_PLOT_SPACE ) );
         }
 
-        if( Plot::AXIS_TYPE_LOG == mParentPlot.getAxisTypeHoriz() )
+        if( Plot2d::AXIS_TYPE_LOG == mParentPlot2d.getAxisTypeHoriz() )
         {
             mPen = QPen( Qt::lightGray, 0.3, Qt::DashDotLine );
             painter.setPen( mPen );
@@ -214,7 +213,7 @@ void PlotCanvas::drawGridLinesV()
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::drawOuterRectangle()
+void Plot2dCanvas::drawOuterRectangle()
 {
     QPainter painter( &mPicture );
 
@@ -229,11 +228,11 @@ void PlotCanvas::drawOuterRectangle()
 
 
 //!************************************************************************
-//! Draw a transient plot with acceleration data
+//! Draw a transient 2D plot with acceleration data
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::drawPlotTransient()
+void Plot2dCanvas::drawPlot2dTransient()
 {
     QPainter painter( &mPicture );
 
@@ -252,7 +251,7 @@ void PlotCanvas::drawPlotTransient()
     int crtY = 0;
     int nextY = 0;
 
-    switch( mParentPlot.getAxis() )
+    switch( mParentPlot2d.getAxis() )
     {
         case Adxl355Adxl357Common::AXIS_X:
             crtY = zeroY - vertScale * accelDataArrays.xArray.at( dataLen / dataW );
@@ -288,7 +287,7 @@ void PlotCanvas::drawPlotTransient()
             index = dataLen - 1;
         }
 
-        switch( mParentPlot.getAxis() )
+        switch( mParentPlot2d.getAxis() )
         {
             case Adxl355Adxl357Common::AXIS_X:
                 nextY = zeroY - vertScale * accelDataArrays.xArray.at( index );
@@ -325,11 +324,11 @@ void PlotCanvas::drawPlotTransient()
 
 
 //!************************************************************************
-//! Draw a frequency plot with FFT (Fast Fourier Transform)
+//! Draw a frequency 2D plot with FFT (Fast Fourier Transform)
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::drawPlotFft()
+void Plot2dCanvas::drawPlot2dFft()
 {
     QPainter painter( &mPicture );
 
@@ -337,7 +336,7 @@ void PlotCanvas::drawPlotFft()
     painter.setPen( mPen );
 
     VibrationHandler* vh = VibrationHandler::getInstance();
-    std::vector<VibrationHandler::FftBin> binsVec = vh->getFftBinsOnAxis( mParentPlot.getAxis() );
+    std::vector<VibrationHandler::FftBin> binsVec = vh->getFftBinsOnAxis( mParentPlot2d.getAxis() );
     size_t dataLen = binsVec.size();
 
     int dataH = mSizeH - TOP_PLOT_SPACE - BOTTOM_PLOT_SPACE;
@@ -347,7 +346,7 @@ void PlotCanvas::drawPlotFft()
     VibrationHandler::FftBin binMaxValue = *std::max_element( binsVec.begin(), binsVec.end(), compareBinFnc );
     VibrationHandler::FftBin binMinValue = *std::min_element( binsVec.begin(), binsVec.end(), compareBinFnc );
 
-    if( Plot::AXIS_TYPE_LINEAR == mParentPlot.getAxisTypeVert() )
+    if( Plot2d::AXIS_TYPE_LINEAR == mParentPlot2d.getAxisTypeVert() )
     {
         mMaxVert = 1;
         mMinVert = 0;
@@ -372,7 +371,7 @@ void PlotCanvas::drawPlotFft()
             crtY = nextY;
         }
     }
-    else if( Plot::AXIS_TYPE_DB == mParentPlot.getAxisTypeVert() )
+    else if( Plot2d::AXIS_TYPE_DB == mParentPlot2d.getAxisTypeVert() )
     {
         static double maxForDbScale = -DBL_MAX;
         static double minForDbScale = DBL_MAX;
@@ -443,11 +442,11 @@ void PlotCanvas::drawPlotFft()
 
 
 //!************************************************************************
-//! Draw a frequency plot with periodogram (PSD)
+//! Draw a frequency 2D plot with periodogram (PSD)
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::drawPlotPeriodogram()
+void Plot2dCanvas::drawPlot2dPeriodogram()
 {
     QPainter painter( &mPicture );
 
@@ -455,7 +454,7 @@ void PlotCanvas::drawPlotPeriodogram()
     painter.setPen( mPen );
 
     VibrationHandler* vh = VibrationHandler::getInstance();
-    std::vector<VibrationHandler::FftPsd> psdVec = vh->getFftPsdOnAxis( mParentPlot.getAxis() );
+    std::vector<VibrationHandler::FftPsd> psdVec = vh->getFftPsdOnAxis( mParentPlot2d.getAxis() );
     size_t dataLen = psdVec.size();
 
     int dataH = mSizeH - TOP_PLOT_SPACE - BOTTOM_PLOT_SPACE;
@@ -465,7 +464,7 @@ void PlotCanvas::drawPlotPeriodogram()
     VibrationHandler::FftPsd psdMaxValue = *std::max_element( psdVec.begin(), psdVec.end(), comparePsdFnc );
     VibrationHandler::FftPsd psdMinValue = *std::min_element( psdVec.begin(), psdVec.end(), comparePsdFnc );
 
-    if( Plot::AXIS_TYPE_LINEAR == mParentPlot.getAxisTypeVert() )
+    if( Plot2d::AXIS_TYPE_LINEAR == mParentPlot2d.getAxisTypeVert() )
     {
         mMaxVert = 1;
         mMinVert = 0;
@@ -490,7 +489,7 @@ void PlotCanvas::drawPlotPeriodogram()
             crtY = nextY;
         }
     }
-    else if( Plot::AXIS_TYPE_DB == mParentPlot.getAxisTypeVert() )
+    else if( Plot2d::AXIS_TYPE_DB == mParentPlot2d.getAxisTypeVert() )
     {
         static double maxForDbScale = -DBL_MAX;
         static double minForDbScale = DBL_MAX;
@@ -561,11 +560,11 @@ void PlotCanvas::drawPlotPeriodogram()
 
 
 //!************************************************************************
-//! Draw a frequency plot with SRS (Shock Response Spectrum)
+//! Draw a frequency 2D plot with SRS (Shock Response Spectrum)
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::drawPlotSrs()
+void Plot2dCanvas::drawPlot2dSrs()
 {
     QPainter painter( &mPicture );
 
@@ -573,13 +572,13 @@ void PlotCanvas::drawPlotSrs()
     painter.setPen( mPen );
 
     VibrationHandler* vh = VibrationHandler::getInstance();
-    std::vector<VibrationHandler::Srs> srsVec = vh->getSrsOnAxis( mParentPlot.getAxis() );
+    std::vector<VibrationHandler::Srs> srsVec = vh->getSrsOnAxis( mParentPlot2d.getAxis() );
     size_t dataLen = srsVec.size();
 
     VibrationHandler::Srs srsMaxValue = *std::max_element( srsVec.begin() + 1, srsVec.end(), compareSrsFnc );
     VibrationHandler::Srs srsMinValue = *std::min_element( srsVec.begin() + 1, srsVec.end(), compareSrsFnc );
 
-    if( Plot::AXIS_TYPE_LOG == mParentPlot.getAxisTypeVert() )
+    if( Plot2d::AXIS_TYPE_LOG == mParentPlot2d.getAxisTypeVert() )
     {
         static double maxForLogScale = -DBL_MAX;
         static double minForLogScale = DBL_MAX;
@@ -676,11 +675,11 @@ void PlotCanvas::drawPlotSrs()
 
 
 //!************************************************************************
-//! Draw a frequency plot with cepstrum
+//! Draw a frequency 2D plot with cepstrum
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::drawPlotCepstrum()
+void Plot2dCanvas::drawPlot2dCepstrum()
 {
     QPainter painter( &mPicture );
 
@@ -688,13 +687,13 @@ void PlotCanvas::drawPlotCepstrum()
     painter.setPen( mPen );
 
     VibrationHandler* vh = VibrationHandler::getInstance();
-    std::vector<VibrationHandler::FftCepstrum> cepstrumVec = vh->getFftCepstrumOnAxis( mParentPlot.getAxis() );
+    std::vector<VibrationHandler::FftCepstrum> cepstrumVec = vh->getFftCepstrumOnAxis( mParentPlot2d.getAxis() );
     size_t dataLen = cepstrumVec.size();
 
     VibrationHandler::FftCepstrum cepstrumMaxValue = *std::max_element( cepstrumVec.begin(), cepstrumVec.end(), compareCepstrumFnc );
     VibrationHandler::FftCepstrum cepstrumMinValue = *std::min_element( cepstrumVec.begin(), cepstrumVec.end(), compareCepstrumFnc );
 
-    if( Plot::AXIS_TYPE_DB == mParentPlot.getAxisTypeVert() )
+    if( Plot2d::AXIS_TYPE_DB == mParentPlot2d.getAxisTypeVert() )
     {
         static double maxForDbScale = -DBL_MAX;
         static double minForDbScale = DBL_MAX;
@@ -773,7 +772,7 @@ void PlotCanvas::drawPlotCepstrum()
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::drawValuesAbscissa()
+void Plot2dCanvas::drawValuesAbscissa()
 {
     QPainter painter( &mPicture );
 
@@ -787,10 +786,10 @@ void PlotCanvas::drawValuesAbscissa()
     int barWidth = ( mSizeW - LEFT_PLOT_SPACE - RIGHT_PLOT_SPACE ) / ( mGridLinesV + 1 );
     double barDelta = 0;
 
-    switch( mParentPlot.getPlotType() )
+    switch( mParentPlot2d.getPlot2dType() )
     {
-        case Plot::PLOT_TYPE_TRANSIENT:
-            if( Plot::AXIS_TYPE_LINEAR == mParentPlot.getAxisTypeHoriz() )
+        case Plot2d::PLOT_2D_TYPE_TRANSIENT:
+            if( Plot2d::AXIS_TYPE_LINEAR == mParentPlot2d.getAxisTypeHoriz() )
             {
                 painter.drawText( LEFT_PLOT_SPACE, TEXT_TOP_MARGIN, "0" );
 
@@ -809,9 +808,9 @@ void PlotCanvas::drawValuesAbscissa()
             }
             break;
 
-        case Plot::PLOT_TYPE_FFT:
-        case Plot::PLOT_TYPE_PERIODOGRAM:
-            if( Plot::AXIS_TYPE_LINEAR == mParentPlot.getAxisTypeHoriz() )
+        case Plot2d::PLOT_2D_TYPE_FFT:
+        case Plot2d::PLOT_2D_TYPE_PERIODOGRAM:
+            if( Plot2d::AXIS_TYPE_LINEAR == mParentPlot2d.getAxisTypeHoriz() )
             {
                 painter.drawText( LEFT_PLOT_SPACE, TEXT_TOP_MARGIN, "0" );
 
@@ -828,7 +827,7 @@ void PlotCanvas::drawValuesAbscissa()
                 xOffset = static_cast<int>( s.size() * FONT_SIZE_9 * COURIER_NEW_RATIO );
                 painter.drawText( mSizeW - RIGHT_PLOT_SPACE - 2 * xOffset, TEXT_TOP_MARGIN, s );
             }
-            else if( Plot::AXIS_TYPE_LOG == mParentPlot.getAxisTypeHoriz() )
+            else if( Plot2d::AXIS_TYPE_LOG == mParentPlot2d.getAxisTypeHoriz() )
             {
                 s = QString::number( mMinFreqLog );
                 painter.drawText( LEFT_PLOT_SPACE, TEXT_TOP_MARGIN, s );
@@ -846,8 +845,8 @@ void PlotCanvas::drawValuesAbscissa()
             }
             break;
 
-        case Plot::PLOT_TYPE_SRS:
-            if( Plot::AXIS_TYPE_LOG == mParentPlot.getAxisTypeHoriz() )
+        case Plot2d::PLOT_2D_TYPE_SRS:
+            if( Plot2d::AXIS_TYPE_LOG == mParentPlot2d.getAxisTypeHoriz() )
             {
                 s = formatScientific( mMinFreqLog );
                 painter.drawText( LEFT_PLOT_SPACE, TEXT_TOP_MARGIN, s );
@@ -865,8 +864,8 @@ void PlotCanvas::drawValuesAbscissa()
             }
             break;
 
-        case Plot::PLOT_TYPE_CEPSTRUM:
-            if( Plot::AXIS_TYPE_LINEAR == mParentPlot.getAxisTypeHoriz() )
+        case Plot2d::PLOT_2D_TYPE_CEPSTRUM:
+            if( Plot2d::AXIS_TYPE_LINEAR == mParentPlot2d.getAxisTypeHoriz() )
             {
                 painter.drawText( LEFT_PLOT_SPACE, TEXT_TOP_MARGIN, "0" );
 
@@ -898,7 +897,7 @@ void PlotCanvas::drawValuesAbscissa()
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::drawValuesOrdinate()
+void Plot2dCanvas::drawValuesOrdinate()
 {
     QPainter painter( &mPicture );
 
@@ -912,12 +911,12 @@ void PlotCanvas::drawValuesOrdinate()
     int barHeight = ( mSizeH - TOP_PLOT_SPACE - BOTTOM_PLOT_SPACE ) / ( mGridLinesH + 1 );
     double barDelta = 0;
 
-    switch( mParentPlot.getPlotType() )
+    switch( mParentPlot2d.getPlot2dType() )
     {
-        case Plot::PLOT_TYPE_TRANSIENT:
-        case Plot::PLOT_TYPE_FFT:
-        case Plot::PLOT_TYPE_PERIODOGRAM:
-        case Plot::PLOT_TYPE_CEPSTRUM:
+        case Plot2d::PLOT_2D_TYPE_TRANSIENT:
+        case Plot2d::PLOT_2D_TYPE_FFT:
+        case Plot2d::PLOT_2D_TYPE_PERIODOGRAM:
+        case Plot2d::PLOT_2D_TYPE_CEPSTRUM:
             s = formatDecimals( mMaxVert );
             xOffset = static_cast<int>( s.size() * FONT_SIZE_9 * COURIER_NEW_RATIO );
             painter.drawText( TEXT_RIGHT_MARGIN - 2 * xOffset, TOP_PLOT_SPACE + 2 * yOffset, s );
@@ -945,7 +944,7 @@ void PlotCanvas::drawValuesOrdinate()
             painter.drawText( TEXT_RIGHT_MARGIN - 2 * xOffset, mSizeH - BOTTOM_PLOT_SPACE - yOffset, s );
             break;
 
-        case Plot::PLOT_TYPE_SRS:
+        case Plot2d::PLOT_2D_TYPE_SRS:
             s = formatScientific( mMaxVert );
             xOffset = static_cast<int>( s.size() * FONT_SIZE_9 * COURIER_NEW_RATIO );
             painter.drawText( TEXT_RIGHT_MARGIN - 2 * xOffset, TOP_PLOT_SPACE + 2 * yOffset, s );
@@ -977,7 +976,7 @@ void PlotCanvas::drawValuesOrdinate()
 //!
 //! @returns The formatted string with up to two decimals
 //!************************************************************************
-QString PlotCanvas::formatDecimals
+QString Plot2dCanvas::formatDecimals
     (
     const double aNumber                //!< number to format
     ) const
@@ -1008,7 +1007,7 @@ QString PlotCanvas::formatDecimals
 //!
 //! @returns The formatted string in scientific format
 //!************************************************************************
-QString PlotCanvas::formatScientific
+QString Plot2dCanvas::formatScientific
     (
     const double aNumber    //!< number to format
     ) const
@@ -1033,7 +1032,7 @@ QString PlotCanvas::formatScientific
 //!
 //! @returns The number of vertical grid lines
 //!************************************************************************
-uint8_t PlotCanvas::getGridLinesHorizAxis() const
+uint8_t Plot2dCanvas::getGridLinesHorizAxis() const
 {
     return mGridLinesV;
 }
@@ -1044,7 +1043,7 @@ uint8_t PlotCanvas::getGridLinesHorizAxis() const
 //!
 //! @returns The number of horizontal grid lines
 //!************************************************************************
-uint8_t PlotCanvas::getGridLinesVertAxis() const
+uint8_t Plot2dCanvas::getGridLinesVertAxis() const
 {
     return mGridLinesH;
 }
@@ -1055,7 +1054,7 @@ uint8_t PlotCanvas::getGridLinesVertAxis() const
 //!
 //! @returns A minimum rectangle size to be kept during resize
 //!************************************************************************
-QSize PlotCanvas::minimumSizeHint() const
+QSize Plot2dCanvas::minimumSizeHint() const
 {
     return QSize( MIN_WIDTH, MIN_HEIGHT );
 }
@@ -1067,7 +1066,7 @@ QSize PlotCanvas::minimumSizeHint() const
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::paintEvent
+void Plot2dCanvas::paintEvent
     (
     QPaintEvent*    /* aEvent */    //!< paint event
     )
@@ -1109,26 +1108,26 @@ void PlotCanvas::paintEvent
     }
 
     // data plots
-    switch( mParentPlot.getPlotType() )
+    switch( mParentPlot2d.getPlot2dType() )
     {
-        case Plot::PLOT_TYPE_TRANSIENT:
-            drawPlotTransient();
+        case Plot2d::PLOT_2D_TYPE_TRANSIENT:
+            drawPlot2dTransient();
             break;
 
-        case Plot::PLOT_TYPE_FFT:
-            drawPlotFft();
+        case Plot2d::PLOT_2D_TYPE_FFT:
+            drawPlot2dFft();
             break;
 
-        case Plot::PLOT_TYPE_PERIODOGRAM:
-            drawPlotPeriodogram();
+        case Plot2d::PLOT_2D_TYPE_PERIODOGRAM:
+            drawPlot2dPeriodogram();
             break;
 
-        case Plot::PLOT_TYPE_SRS:
-            drawPlotSrs();
+        case Plot2d::PLOT_2D_TYPE_SRS:
+            drawPlot2dSrs();
             break;
 
-        case Plot::PLOT_TYPE_CEPSTRUM:
-            drawPlotCepstrum();
+        case Plot2d::PLOT_2D_TYPE_CEPSTRUM:
+            drawPlot2dCepstrum();
             break;
 
         default:
@@ -1145,7 +1144,7 @@ void PlotCanvas::paintEvent
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::resizeEvent
+void Plot2dCanvas::resizeEvent
     (
     QResizeEvent*   aEvent      //!< resize event
     )
@@ -1161,7 +1160,7 @@ void PlotCanvas::resizeEvent
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::setParameters
+void Plot2dCanvas::setParameters
     (
     const double   aSps,        //!< sampling rate [Hz]
     const uint32_t aFftSize     //!< FFT size
@@ -1186,7 +1185,7 @@ void PlotCanvas::setParameters
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::setGridLinesHorizAxis
+void Plot2dCanvas::setGridLinesHorizAxis
     (
     const uint8_t aGridLinesNumber          //!< number of grid lines
     )
@@ -1204,7 +1203,7 @@ void PlotCanvas::setGridLinesHorizAxis
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::setGridLinesVertAxis
+void Plot2dCanvas::setGridLinesVertAxis
     (
     const uint8_t aGridLinesNumber          //!< number of grid lines
     )
@@ -1221,7 +1220,7 @@ void PlotCanvas::setGridLinesVertAxis
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::setVerticalMaxTransient
+void Plot2dCanvas::setVerticalMaxTransient
     (
     const double aVerticalMax           //!< max value for vertical axis [g]
     )
@@ -1229,7 +1228,7 @@ void PlotCanvas::setVerticalMaxTransient
     mMaxVert = fabs( aVerticalMax );
     mMinVert = -mMaxVert;
 
-    if( Plot::PLOT_TYPE_TRANSIENT == mParentPlot.getPlotType() )
+    if( Plot2d::PLOT_2D_TYPE_TRANSIENT == mParentPlot2d.getPlot2dType() )
     {
         mHaveVertValues = true;
     }
@@ -1241,7 +1240,7 @@ void PlotCanvas::setVerticalMaxTransient
 //!
 //! @returns A rectangle to be used at the first content resize
 //!************************************************************************
-QSize PlotCanvas::sizeHint() const
+QSize Plot2dCanvas::sizeHint() const
 {
     return QSize( MIN_WIDTH, MIN_HEIGHT );
 }
@@ -1256,12 +1255,12 @@ QSize PlotCanvas::sizeHint() const
 //!
 //! @returns nothing
 //!************************************************************************
-void PlotCanvas::updateMinFrequencyLog()
+void Plot2dCanvas::updateMinFrequencyLog()
 {
     double thd = log10( mMaxFreq );
     mMinFreqLog = 0;
 
-    if( Plot::PLOT_TYPE_SRS == mParentPlot.getPlotType() )
+    if( Plot2d::PLOT_2D_TYPE_SRS == mParentPlot2d.getPlot2dType() )
     {
         mMinFreqLog = SrsThread::NATURAL_FREQ_MIN;
         mGridLinesV = static_cast<uint8_t>( log10( mMaxFreqLog / mMinFreqLog ) ) - 1;

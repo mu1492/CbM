@@ -118,6 +118,7 @@ set(OpenGL_GL_PREFERENCE LEGACY)
 #########################
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets OpenGL OpenGLExtensions)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets OpenGL OpenGLExtensions)
+find_package(OpenGL REQUIRED)
 
 if(USE_CUDA)
     find_package(CUDA REQUIRED)
@@ -164,16 +165,22 @@ list(APPEND PRJ_SOURCES_LIST
         Numeric.h
         CbmCanvas.cpp
         CbmCanvas.h
-        Plot.cpp
-        Plot.h
-        PlotCanvas.cpp
-        PlotCanvas.h
+        Plot2d.cpp
+        Plot2d.h
+        Plot2dCanvas.cpp
+        Plot2dCanvas.h
+        Plot3d.cpp
+        Plot3d.h
+        Plot3dCanvas.cpp
+        Plot3dCanvas.h
         SpectralViewer.ui
         Accelerometer.ui
         FrequencyAnalysis.ui
         VibrationMonitoringSettings.ui
-        PlotOptions.ui
-        Plot.ui
+        Plot2dOptions.ui
+        Plot3dOptions.ui
+        Plot2d.ui
+        Plot3d.ui
         About.ui
         SpectralViewer.qrc
         ../Drivers/Adxl355Adxl357Common/Adxl355Adxl357Common.cpp
@@ -221,7 +228,10 @@ endif()
 # Linker and libraries
 #########################
 if(NOT USE_CUDA)
-    target_link_libraries(SpectralViewer PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::OpenGL Qt${QT_VERSION_MAJOR}::OpenGLExtensions ${OPENGL_LIBRARIES})
+    target_link_libraries(SpectralViewer PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
+                                                 Qt${QT_VERSION_MAJOR}::OpenGL
+                                                 Qt${QT_VERSION_MAJOR}::OpenGLExtensions
+                                                 ${OPENGL_LIBRARIES})
 else()
     target_compile_options(SpectralViewerCuda PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:
                            -std=c++11
@@ -231,7 +241,13 @@ else()
                            >)
 
     set(CUDA_LIBRARIES "libcuda.so")
-    target_link_libraries(SpectralViewerCuda PRIVATE Qt5::Widgets Qt5::OpenGL Qt5::OpenGLExtensions ${OPENGL_LIBRARIES} ${CUDA_LIBRARIES} -lcufft -lcudla)
+    target_link_libraries(SpectralViewerCuda PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
+                                                     Qt${QT_VERSION_MAJOR}::OpenGL
+                                                     Qt${QT_VERSION_MAJOR}::OpenGLExtensions
+                                                     ${OPENGL_LIBRARIES}
+                                                     ${CUDA_LIBRARIES}
+                                                     -lcufft
+                                                     -lcudla)
 endif()
 
 if(QT_VERSION_MAJOR EQUAL 6)

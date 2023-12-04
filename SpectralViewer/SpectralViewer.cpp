@@ -29,8 +29,10 @@ This file contains the sources for the mechanical vibrations spectral viewer.
 #include "FrequencyAnalysis.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <list>
 #include <map>
 
@@ -40,6 +42,7 @@ This file contains the sources for the mechanical vibrations spectral viewer.
 #include <linux/i2c.h>
 #include <linux/i2c-dev.h>
 
+#include <QFileDialog>
 #include <QMessageBox>
 #include <QStandardItem>
 #include <QStandardItemModel>
@@ -62,7 +65,8 @@ SpectralViewer::SpectralViewer
     , mAccelerometerUi( new Ui::AccelerometerDialog )
     , mFrequencyAnalysisUi( new Ui::FrequencyAnalysisDialog )
     , mVibrationMonitoringSettingsUi( new Ui::VibrationMonitoringSettingsDialog )
-    , mPlotOptionsUi( new Ui::PlotOptionsDialog )
+    , mPlot2dOptionsUi( new Ui::Plot2dOptionsDialog )
+    , mPlot3dOptionsUi( new Ui::Plot3dOptionsDialog )
     , mAboutUi( new Ui::AboutDialog )
     // I2C resources
     , mI2cBusChannel( 0 )
@@ -78,30 +82,53 @@ SpectralViewer::SpectralViewer
 #endif
     // paint&draw
     , mCbmCanvas( nullptr )
-    // X axis plots
-    , mPlotXtransient( nullptr )
-    , mPlotXfft( nullptr )
-    , mPlotXperiodogram( nullptr )
-    , mPlotXsrs( nullptr )
-    , mPlotXcepstrum( nullptr )
-    // Y axis plots
-    , mPlotYtransient( nullptr )
-    , mPlotYfft( nullptr )
-    , mPlotYperiodogram( nullptr )
-    , mPlotYsrs( nullptr )
-    , mPlotYcepstrum( nullptr )
-    // Z axis plots
-    , mPlotZtransient( nullptr )
-    , mPlotZfft( nullptr )
-    , mPlotZperiodogram( nullptr )
-    , mPlotZsrs( nullptr )
-    , mPlotZcepstrum( nullptr )
+    // 2D - X axis plots
+    , mPlot2dXtransient( nullptr )
+    , mPlot2dXfft( nullptr )
+    , mPlot2dXperiodogram( nullptr )
+    , mPlot2dXsrs( nullptr )
+    , mPlot2dXcepstrum( nullptr )
+    // 2D - Y axis plots
+    , mPlot2dYtransient( nullptr )
+    , mPlot2dYfft( nullptr )
+    , mPlot2dYperiodogram( nullptr )
+    , mPlot2dYsrs( nullptr )
+    , mPlot2dYcepstrum( nullptr )
+    // 2D - Z axis plots
+    , mPlot2dZtransient( nullptr )
+    , mPlot2dZfft( nullptr )
+    , mPlot2dZperiodogram( nullptr )
+    , mPlot2dZsrs( nullptr )
+    , mPlot2dZcepstrum( nullptr )
+    // 3D - X axis plots
+    , mPlot3dXtransient( nullptr )
+    , mPlot3dXfft( nullptr )
+    , mPlot3dXperiodogram( nullptr )
+    , mPlot3dXsrs( nullptr )
+    , mPlot3dXcepstrum( nullptr )
+    // 3D - Y axis plots
+    , mPlot3dYtransient( nullptr )
+    , mPlot3dYfft( nullptr )
+    , mPlot3dYperiodogram( nullptr )
+    , mPlot3dYsrs( nullptr )
+    , mPlot3dYcepstrum( nullptr )
+    // 3D - Z axis plots
+    , mPlot3dZtransient( nullptr )
+    , mPlot3dZfft( nullptr )
+    , mPlot3dZperiodogram( nullptr )
+    , mPlot3dZsrs( nullptr )
+    , mPlot3dZcepstrum( nullptr )
+    // config
+    , mIsConfigSetupRunning( false )
+    // dump
+    , mDumpRemainingSamples( 0 )
 {
-    mMainUi->setupUi( this );
+    mMainUi->setupUi( this );    
     mAccelerometerUi->setupUi( &mAccelerometerDlg );
     mFrequencyAnalysisUi->setupUi( &mFrequencyAnalysisDlg );
-    mVibrationMonitoringSettingsUi->setupUi( &mVibrationMonitoringSettingsDlg );
-    mPlotOptionsUi->setupUi( &mPlotOptionsDlg );
+    mVibrationMonitoringSettingsUi->setupUi( &mVibrationMonitoringSettingsDlg );    
+    mPlot2dOptionsUi->setupUi( &mPlot2dOptionsDlg );
+    mPlot3dOptionsUi->setupUi( &mPlot3dOptionsDlg );
 
 #if BUILD_CUDA
     checkCudaRequirements();
@@ -207,6 +234,7 @@ SpectralViewer::SpectralViewer
             mDaqThread = new DaqThread( this, mAccelInstance );
             connect( mDaqThread, SIGNAL( haveNewSps(int) ), this, SLOT( receiveNewSps(int) ) );
             connect( mDaqThread, SIGNAL( haveNewTemperature(double) ), this, SLOT( receiveNewTemperature(double) ) );            
+            connect( mDaqThread, SIGNAL( haveNewData(double, double, double) ), this, SLOT( receiveNewData(double, double, double) ) );
             mDaqThread->updateDelay( getDaqDelayUs() );
             mDaqThread->start();
         }
@@ -222,6 +250,7 @@ SpectralViewer::SpectralViewer
     //****************************************
     // menus
     //****************************************
+    connect( mMainUi->actionOpenConfiguration, &QAction::triggered, this, &SpectralViewer::handleOpenConfiguration );
     connect( mMainUi->actionExit, &QAction::triggered, this, &SpectralViewer::handleExit );
 
     mMainUi->actionAccelerometer->setText( ACCEL_SETTINGS_STR );
@@ -235,8 +264,11 @@ SpectralViewer::SpectralViewer
     connect( mMainUi->actionVibrationMonitoring, &QAction::triggered, this, &SpectralViewer::handleMenuVibMon );
     initVibMonDialogControls();
 
-    connect( mMainUi->actionSelectPlots, &QAction::triggered, this, &SpectralViewer::handleMenuSelectPlots );
-    initPlotOptionsControls();
+    connect( mMainUi->actionSelectPlots2D, &QAction::triggered, this, &SpectralViewer::handleMenuSelectPlots2D );
+    connect( mMainUi->actionSelectPlots3D, &QAction::triggered, this, &SpectralViewer::handleMenuSelectPlots3D );
+    initPlot2dOptionsControls();
+    initPlot3dOptionsControls();
+    mMainUi->actionSelectPlots3D->setEnabled( false );
 
     connect( mMainUi->actionAbout, &QAction::triggered, this, &SpectralViewer::handleAbout );
 
@@ -264,7 +296,16 @@ SpectralViewer::SpectralViewer
     mCbmCanvas = new CbmCanvas;
     setCentralWidget( mCbmCanvas );
     this->adjustSize();
-    mCbmCanvas->update();
+    mCbmCanvas->update();    
+
+    //****************************************
+    // config
+    //****************************************
+    mConfig.accelerometerType = "";
+    mConfig.range = Adxl355Adxl357Common::ACCELERATION_RANGE_DEFAULT;
+    mConfig.odrSetting = Adxl355Adxl357Common::ODR_SETTING_3_90625;
+    mConfig.nullifyActive = false;
+    mConfig.samplesCount = 0;
 }
 
 
@@ -273,6 +314,11 @@ SpectralViewer::SpectralViewer
 //!************************************************************************
 SpectralViewer::~SpectralViewer()
 {
+    if( mIsConfigSetupRunning )
+    {
+        stopConfiguration();
+    }
+
     if( mDaqThread )
     {
         mDaqThread->quit();
@@ -291,6 +337,95 @@ SpectralViewer::~SpectralViewer()
 #endif
 
     delete mMainUi;
+}
+
+
+//!************************************************************************
+//! Change the acceleration ODR
+//!
+//! @returns true at success
+//!************************************************************************
+bool SpectralViewer::changeAccelOdr
+    (
+    const Adxl355Adxl357Common::OdrSetting aOdrSetting      //!< ODR setting
+    )
+{
+    bool statusOk =
+#if BUILD_I2C_HIGH_SPEED
+        aOdrSetting >= Adxl355Adxl357Common::ODR_SETTING_4000
+#elif BUILD_I2C_FAST_PLUS
+        aOdrSetting >= Adxl355Adxl357Common::ODR_SETTING_2000
+#elif BUILD_I2C_FAST
+        aOdrSetting >= Adxl355Adxl357Common::ODR_SETTING_500
+#else
+        aOdrSetting >= Adxl355Adxl357Common::ODR_SETTING_125
+#endif
+        ;
+
+    if( statusOk && mAccelInstance )
+    {
+        uint16_t delayUs = getDaqDelayUs();
+
+        if( mDaqThread && mDaqThread->isRunning() )
+        {
+            mDaqThread->pause();
+            mDaqThread->usleep( delayUs );
+        }
+
+        statusOk = mAccelInstance->setOdr( aOdrSetting );
+        mFreqAnalysisInstance->setFftSps( mAccelInstance->getOdrFrequency() );
+
+        updatePlotsFrequencyParams();
+
+        if( mDaqThread && mDaqThread->isRunning() )
+        {
+            delayUs = getDaqDelayUs();
+            mDaqThread->updateDelay( delayUs );
+            mDaqThread->resume();
+        }
+
+        if( mAccelerometerDlg.isVisible() )
+        {
+            mAccelerometerUi->LpfFrequencyValue->setText( QString::number( mAccelInstance->getOdrLpfCorner() ) );
+        }
+    }
+
+    return statusOk;
+}
+
+
+//!************************************************************************
+//! Change the acceleration range
+//!
+//! @returns true at success
+//!************************************************************************
+bool SpectralViewer::changeAccelRange
+    (
+    const Adxl355Adxl357Common::AccelerationRange aRange    //!< acceleration range
+    )
+{
+    bool statusOk = false;
+
+    if( mAccelInstance )
+    {
+        uint16_t delayUs = getDaqDelayUs();
+
+        if( mDaqThread && mDaqThread->isRunning() )
+        {
+            mDaqThread->pause();
+            mDaqThread->usleep( delayUs );
+        }
+
+        statusOk = mAccelInstance->setAccelerationRange( aRange );
+        updatePlotsVerticalMaxTransient();
+
+        if( mDaqThread && mDaqThread->isRunning() )
+        {
+            mDaqThread->resume();
+        }
+    }
+
+    return statusOk;
 }
 
 
@@ -384,6 +519,39 @@ SpectralViewer::~SpectralViewer()
 
 
 //!************************************************************************
+//! Insensitive character comparison
+//!
+//! @returns true if the characters are insensitive equal
+//!************************************************************************
+bool SpectralViewer::compareIchar
+    (
+    char aFirstChar,    //!< 1st character
+    char aSecondChar    //!< 2nd character
+    )
+{
+    return std::tolower( static_cast<unsigned char>( aFirstChar ) ) ==
+           std::tolower( static_cast<unsigned char>( aSecondChar ) );
+}
+
+
+//!************************************************************************
+//! Insensitive string comparison
+//!
+//! @returns true if the strings are insensitive equal
+//!************************************************************************
+bool SpectralViewer::compareIstr
+    (
+    const std::string& aFirstString,    //!< 1st string
+    const std::string& aSecondString    //!< 2nd string
+    ) const
+{
+    return std::equal( aFirstString.begin(), aFirstString.end(),
+                       aSecondString.begin(), aSecondString.end(),
+                       compareIchar );
+}
+
+
+//!************************************************************************
 //! Convert a number of seconds to a formatted string
 //!
 //! @returns The formatted string
@@ -426,6 +594,26 @@ QString SpectralViewer::convertSeconds2String
     str += "s";
 
     return str;
+}
+
+
+//!************************************************************************
+//! Create a filename for CSV data, using an input filename
+//!
+//! @returns The string for the output file
+//!************************************************************************
+std::string SpectralViewer::createCsvDataFilename
+    (
+    const std::string aInputFilename    //!< input filename
+    ) const
+{
+    std::filesystem::path fullPath( aInputFilename );
+    std::string csvFilename = fullPath.stem();
+    QDateTime crtDateTime = QDateTime::currentDateTime();
+    csvFilename += crtDateTime.toString( ".yyyyMMdd_hhmmss" ).toStdString();
+    csvFilename += ".csv";
+
+    return csvFilename;
 }
 
 
@@ -497,32 +685,15 @@ uint16_t SpectralViewer::getDaqDelayUs()
     int aIndex      //!< index
     )
 {
-    if( mAccelInstance )
-    {
-        Adxl355Adxl357Common::AccelerationRange range = static_cast<Adxl355Adxl357Common::AccelerationRange>( aIndex +
+    Adxl355Adxl357Common::AccelerationRange range = static_cast<Adxl355Adxl357Common::AccelerationRange>( aIndex +
 #if BUILD_ADXL355
-            Adxl355Adxl357Common::ACCELERATION_RANGE_2G
+        Adxl355Adxl357Common::ACCELERATION_RANGE_2G
 #elif BUILD_ADXL357
-            Adxl355Adxl357Common::ACCELERATION_RANGE_10G
+        Adxl355Adxl357Common::ACCELERATION_RANGE_10G
 #endif
         );
 
-        uint16_t delayUs = getDaqDelayUs();
-
-        if( mDaqThread && mDaqThread->isRunning() )
-        {
-            mDaqThread->pause();
-            mDaqThread->usleep( delayUs );
-        }
-
-        mAccelInstance->setAccelerationRange( range );
-        updatePlotsVerticalMaxTransient();
-
-        if( mDaqThread && mDaqThread->isRunning() )
-        {
-            mDaqThread->resume();
-        }
-    }
+    changeAccelRange( range );
 }
 
 
@@ -536,33 +707,8 @@ uint16_t SpectralViewer::getDaqDelayUs()
     int aIndex      //!< index
     )
 {
-    if( mAccelInstance )
-    {
-        uint16_t delayUs = getDaqDelayUs();
-
-        if( mDaqThread && mDaqThread->isRunning() )
-        {
-            mDaqThread->pause();
-            mDaqThread->usleep( delayUs );
-        }
-
-        mAccelInstance->setOdr( static_cast<Adxl355Adxl357Common::OdrSetting>( aIndex ) );        
-        mFreqAnalysisInstance->setFftSps( mAccelInstance->getOdrFrequency() );
-
-        updatePlotsFrequencyParams();
-
-        if( mDaqThread && mDaqThread->isRunning() )
-        {
-            delayUs = getDaqDelayUs();
-            mDaqThread->updateDelay( delayUs );
-            mDaqThread->resume();
-        }
-
-        if( mAccelerometerDlg.isVisible() )
-        {
-            mAccelerometerUi->LpfFrequencyValue->setText( QString::number( mAccelInstance->getOdrLpfCorner() ) );
-        }
-    }
+    Adxl355Adxl357Common::OdrSetting odrSetting = static_cast<Adxl355Adxl357Common::OdrSetting>( aIndex );
+    changeAccelOdr( odrSetting );
 }
 
 
@@ -604,31 +750,60 @@ uint16_t SpectralViewer::getDaqDelayUs()
 
     if( !aEnabled )
     {
-        if( mPlotXsrs )
+        // 2D
+        if( mPlot2dXsrs )
         {
-            mPlotXsrs->close();
+            mPlot2dXsrs->close();
         }
 
-        mPlotOptions.xAxis.at( Plot::PLOT_TYPE_SRS ) = false;
+        mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) = false;
 
-        if( mPlotYsrs )
+        if( mPlot2dYsrs )
         {
-            mPlotYsrs->close();
+            mPlot2dYsrs->close();
         }
 
-        mPlotOptions.yAxis.at( Plot::PLOT_TYPE_SRS ) = false;
+        mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) = false;
 
-        if( mPlotZsrs )
+        if( mPlot2dZsrs )
         {
-            mPlotZsrs->close();
+            mPlot2dZsrs->close();
         }
 
-        mPlotOptions.zAxis.at( Plot::PLOT_TYPE_SRS ) = false;
+        mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) = false;
+
+        // 3D
+        if( mPlot3dXsrs )
+        {
+            mPlot3dXsrs->close();
+        }
+
+        mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) = false;
+
+        if( mPlot3dYsrs )
+        {
+            mPlot3dYsrs->close();
+        }
+
+        mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) = false;
+
+        if( mPlot3dZsrs )
+        {
+            mPlot3dZsrs->close();
+        }
+
+        mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) = false;
     }
 
-    updatePlotOptionsButtonsX();
-    updatePlotOptionsButtonsY();
-    updatePlotOptionsButtonsZ();
+    // 2D
+    updatePlot2dOptionsButtonsX();
+    updatePlot2dOptionsButtonsY();
+    updatePlot2dOptionsButtonsZ();
+
+    // 3D
+    updatePlot3dOptionsButtonsX();
+    updatePlot3dOptionsButtonsY();
+    updatePlot3dOptionsButtonsZ();
 }
 
 
@@ -712,242 +887,482 @@ uint16_t SpectralViewer::getDaqDelayUs()
 
 
 //!************************************************************************
-//! Handle for changing a plot option
+//! Handle for changing a 2D plot option
 //! X axis / transient
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handleChangedPlotOptionXtransient
+/* slot */ void SpectralViewer::handleChangedPlot2dOptionXtransient
     (
     bool aEnabled
     )
 {
-    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_TRANSIENT ) = aEnabled;
-    updatePlotOptionsButtonsX();
+    mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT ) = aEnabled;
+    updatePlot2dOptionsButtonsX();
 }
 
 
 //!************************************************************************
-//! Handle for changing a plot option
+//! Handle for changing a 2D plot option
 //! X axis / FFT
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handleChangedPlotOptionXfft
+/* slot */ void SpectralViewer::handleChangedPlot2dOptionXfft
     (
     bool aEnabled
     )
 {
-    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_FFT ) = aEnabled;
-    updatePlotOptionsButtonsX();
+    mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_FFT ) = aEnabled;
+    updatePlot2dOptionsButtonsX();
 }
 
 
 //!************************************************************************
-//! Handle for changing a plot option
+//! Handle for changing a 2D plot option
 //! X axis / periodogram
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handleChangedPlotOptionXperiodogram
+/* slot */ void SpectralViewer::handleChangedPlot2dOptionXperiodogram
     (
     bool aEnabled
     )
 {
-    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) = aEnabled;
-    updatePlotOptionsButtonsX();
+    mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM ) = aEnabled;
+    updatePlot2dOptionsButtonsX();
 }
 
 
 //!************************************************************************
-//! Handle for changing a plot option
+//! Handle for changing a 2D plot option
 //! X axis / SRS
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handleChangedPlotOptionXsrs
+/* slot */ void SpectralViewer::handleChangedPlot2dOptionXsrs
     (
     bool aEnabled
     )
 {
-    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_SRS ) = aEnabled;
-    updatePlotOptionsButtonsX();
+    mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) = aEnabled;
+    updatePlot2dOptionsButtonsX();
 }
 
 
 //!************************************************************************
-//! Handle for changing a plot option
+//! Handle for changing a 2D plot option
 //! X axis / cepstrum
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handleChangedPlotOptionXcepstrum
+/* slot */ void SpectralViewer::handleChangedPlot2dOptionXcepstrum
     (
     bool aEnabled
     )
 {
-    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) = aEnabled;
-    updatePlotOptionsButtonsX();
+    mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM ) = aEnabled;
+    updatePlot2dOptionsButtonsX();
 }
 
 
 //!************************************************************************
-//! Handle for changing a plot option
+//! Handle for changing a 2D plot option
 //! Y axis / transient
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handleChangedPlotOptionYtransient
+/* slot */ void SpectralViewer::handleChangedPlot2dOptionYtransient
     (
     bool aEnabled
     )
 {
-    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_TRANSIENT ) = aEnabled;
-    updatePlotOptionsButtonsY();
+    mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT ) = aEnabled;
+    updatePlot2dOptionsButtonsY();
 }
 
 
 //!************************************************************************
-//! Handle for changing a plot option
+//! Handle for changing a 2D plot option
 //! Y axis / FFT
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handleChangedPlotOptionYfft
+/* slot */ void SpectralViewer::handleChangedPlot2dOptionYfft
     (
     bool aEnabled
     )
 {
-    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_FFT ) = aEnabled;
-    updatePlotOptionsButtonsY();
+    mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_FFT ) = aEnabled;
+    updatePlot2dOptionsButtonsY();
 }
 
 
 //!************************************************************************
-//! Handle for changing a plot option
+//! Handle for changing a 2D plot option
 //! Y axis / periodogram
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handleChangedPlotOptionYperiodogram
+/* slot */ void SpectralViewer::handleChangedPlot2dOptionYperiodogram
     (
     bool aEnabled
     )
 {
-    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) = aEnabled;
-    updatePlotOptionsButtonsY();
+    mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM ) = aEnabled;
+    updatePlot2dOptionsButtonsY();
 }
 
 
 //!************************************************************************
-//! Handle for changing a plot option
+//! Handle for changing a 2D plot option
 //! Y axis / SRS
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handleChangedPlotOptionYsrs
+/* slot */ void SpectralViewer::handleChangedPlot2dOptionYsrs
     (
     bool aEnabled
     )
 {
-    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_SRS ) = aEnabled;
-    updatePlotOptionsButtonsY();
+    mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) = aEnabled;
+    updatePlot2dOptionsButtonsY();
 }
 
 
 //!************************************************************************
-//! Handle for changing a plot option
+//! Handle for changing a 2D plot option
 //! Y axis / cepstrum
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handleChangedPlotOptionYcepstrum
+/* slot */ void SpectralViewer::handleChangedPlot2dOptionYcepstrum
     (
     bool aEnabled
     )
 {
-    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) = aEnabled;
-    updatePlotOptionsButtonsY();
+    mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM ) = aEnabled;
+    updatePlot2dOptionsButtonsY();
 }
 
 
 //!************************************************************************
-//! Handle for changing a plot option
+//! Handle for changing a 2D plot option
 //! Z axis / transient
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handleChangedPlotOptionZtransient
+/* slot */ void SpectralViewer::handleChangedPlot2dOptionZtransient
     (
     bool aEnabled
     )
 {
-    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_TRANSIENT ) = aEnabled;
-    updatePlotOptionsButtonsZ();
+    mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT ) = aEnabled;
+    updatePlot2dOptionsButtonsZ();
 }
 
 
 //!************************************************************************
-//! Handle for changing a plot option
+//! Handle for changing a 2D plot option
 //! Z axis / FFT
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handleChangedPlotOptionZfft
+/* slot */ void SpectralViewer::handleChangedPlot2dOptionZfft
     (
     bool aEnabled
     )
 {
-    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_FFT ) = aEnabled;
-    updatePlotOptionsButtonsZ();
+    mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_FFT ) = aEnabled;
+    updatePlot2dOptionsButtonsZ();
 }
 
 
 //!************************************************************************
-//! Handle for changing a plot option
+//! Handle for changing a 2D plot option
 //! Z axis / periodogram
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handleChangedPlotOptionZperiodogram
+/* slot */ void SpectralViewer::handleChangedPlot2dOptionZperiodogram
     (
     bool aEnabled
     )
 {
-    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) = aEnabled;
-    updatePlotOptionsButtonsZ();
+    mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM ) = aEnabled;
+    updatePlot2dOptionsButtonsZ();
 }
 
 
 //!************************************************************************
-//! Handle for changing a plot option
+//! Handle for changing a 2D plot option
 //! Z axis / SRS
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handleChangedPlotOptionZsrs
+/* slot */ void SpectralViewer::handleChangedPlot2dOptionZsrs
     (
     bool aEnabled
     )
 {
-    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_SRS ) = aEnabled;
-    updatePlotOptionsButtonsZ();
+    mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) = aEnabled;
+    updatePlot2dOptionsButtonsZ();
 }
 
 
 //!************************************************************************
-//! Handle for changing a plot option
+//! Handle for changing a 2D plot option
 //! Z axis / cepstrum
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handleChangedPlotOptionZcepstrum
+/* slot */ void SpectralViewer::handleChangedPlot2dOptionZcepstrum
     (
     bool aEnabled
     )
 {
-    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) = aEnabled;
-    updatePlotOptionsButtonsZ();
+    mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM ) = aEnabled;
+    updatePlot2dOptionsButtonsZ();
+}
+
+
+//!************************************************************************
+//! Handle for changing a 3D plot option
+//! X axis / transient
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleChangedPlot3dOptionXtransient
+    (
+    bool aEnabled
+    )
+{
+    mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT ) = aEnabled;
+    updatePlot3dOptionsButtonsX();
+}
+
+
+//!************************************************************************
+//! Handle for changing a 3D plot option
+//! X axis / FFT
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleChangedPlot3dOptionXfft
+    (
+    bool aEnabled
+    )
+{
+    mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_FFT ) = aEnabled;
+    updatePlot3dOptionsButtonsX();
+}
+
+
+//!************************************************************************
+//! Handle for changing a 3D plot option
+//! X axis / periodogram
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleChangedPlot3dOptionXperiodogram
+    (
+    bool aEnabled
+    )
+{
+    mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM ) = aEnabled;
+    updatePlot3dOptionsButtonsX();
+}
+
+
+//!************************************************************************
+//! Handle for changing a 3D plot option
+//! X axis / SRS
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleChangedPlot3dOptionXsrs
+    (
+    bool aEnabled
+    )
+{
+    mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) = aEnabled;
+    updatePlot3dOptionsButtonsX();
+}
+
+
+//!************************************************************************
+//! Handle for changing a 3D plot option
+//! X axis / cepstrum
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleChangedPlot3dOptionXcepstrum
+    (
+    bool aEnabled
+    )
+{
+    mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM ) = aEnabled;
+    updatePlot3dOptionsButtonsX();
+}
+
+
+//!************************************************************************
+//! Handle for changing a 3D plot option
+//! Y axis / transient
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleChangedPlot3dOptionYtransient
+    (
+    bool aEnabled
+    )
+{
+    mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT ) = aEnabled;
+    updatePlot3dOptionsButtonsY();
+}
+
+
+//!************************************************************************
+//! Handle for changing a 3D plot option
+//! Y axis / FFT
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleChangedPlot3dOptionYfft
+    (
+    bool aEnabled
+    )
+{
+    mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_FFT ) = aEnabled;
+    updatePlot3dOptionsButtonsY();
+}
+
+
+//!************************************************************************
+//! Handle for changing a 3D plot option
+//! Y axis / periodogram
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleChangedPlot3dOptionYperiodogram
+    (
+    bool aEnabled
+    )
+{
+    mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM ) = aEnabled;
+    updatePlot3dOptionsButtonsY();
+}
+
+
+//!************************************************************************
+//! Handle for changing a 3D plot option
+//! Y axis / SRS
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleChangedPlot3dOptionYsrs
+    (
+    bool aEnabled
+    )
+{
+    mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) = aEnabled;
+    updatePlot3dOptionsButtonsY();
+}
+
+
+//!************************************************************************
+//! Handle for changing a 3D plot option
+//! Y axis / cepstrum
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleChangedPlot3dOptionYcepstrum
+    (
+    bool aEnabled
+    )
+{
+    mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM ) = aEnabled;
+    updatePlot3dOptionsButtonsY();
+}
+
+
+//!************************************************************************
+//! Handle for changing a 3D plot option
+//! Z axis / transient
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleChangedPlot3dOptionZtransient
+    (
+    bool aEnabled
+    )
+{
+    mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT ) = aEnabled;
+    updatePlot3dOptionsButtonsZ();
+}
+
+
+//!************************************************************************
+//! Handle for changing a 3D plot option
+//! Z axis / FFT
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleChangedPlot3dOptionZfft
+    (
+    bool aEnabled
+    )
+{
+    mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_FFT ) = aEnabled;
+    updatePlot3dOptionsButtonsZ();
+}
+
+
+//!************************************************************************
+//! Handle for changing a 3D plot option
+//! Z axis / periodogram
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleChangedPlot3dOptionZperiodogram
+    (
+    bool aEnabled
+    )
+{
+    mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM ) = aEnabled;
+    updatePlot3dOptionsButtonsZ();
+}
+
+
+//!************************************************************************
+//! Handle for changing a 3D plot option
+//! Z axis / SRS
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleChangedPlot3dOptionZsrs
+    (
+    bool aEnabled
+    )
+{
+    mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) = aEnabled;
+    updatePlot3dOptionsButtonsZ();
+}
+
+
+//!************************************************************************
+//! Handle for changing a 3D plot option
+//! Z axis / cepstrum
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleChangedPlot3dOptionZcepstrum
+    (
+    bool aEnabled
+    )
+{
+    mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM ) = aEnabled;
+    updatePlot3dOptionsButtonsZ();
 }
 
 
@@ -1249,22 +1664,42 @@ uint16_t SpectralViewer::getDaqDelayUs()
 
 
 //!************************************************************************
-//! Handle for plotting options
+//! Handle for 2D plotting options
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handleMenuSelectPlots()
+/* slot */ void SpectralViewer::handleMenuSelectPlots2D()
 {
-    updatePlotOptionsCheckBoxesX();
-    updatePlotOptionsCheckBoxesY();
-    updatePlotOptionsCheckBoxesZ();
+    updatePlot2dOptionsCheckBoxesX();
+    updatePlot2dOptionsCheckBoxesY();
+    updatePlot2dOptionsCheckBoxesZ();
 
     bool isSrsRunning = mFreqAnalysisInstance->getSrsIsRunning();
-    mPlotOptionsUi->XaxisSrsCheckBox->setEnabled( isSrsRunning );
-    mPlotOptionsUi->YaxisSrsCheckBox->setEnabled( isSrsRunning );
-    mPlotOptionsUi->ZaxisSrsCheckBox->setEnabled( isSrsRunning );
+    mPlot2dOptionsUi->XaxisSrsCheckBox->setEnabled( isSrsRunning );
+    mPlot2dOptionsUi->YaxisSrsCheckBox->setEnabled( isSrsRunning );
+    mPlot2dOptionsUi->ZaxisSrsCheckBox->setEnabled( isSrsRunning );
 
-    mPlotOptionsDlg.exec();
+    mPlot2dOptionsDlg.exec();
+}
+
+
+//!************************************************************************
+//! Handle for 3D plotting options
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handleMenuSelectPlots3D()
+{
+    updatePlot3dOptionsCheckBoxesX();
+    updatePlot3dOptionsCheckBoxesY();
+    updatePlot3dOptionsCheckBoxesZ();
+
+    bool isSrsRunning = mFreqAnalysisInstance->getSrsIsRunning();
+    mPlot3dOptionsUi->XaxisSrsCheckBox->setEnabled( isSrsRunning );
+    mPlot3dOptionsUi->YaxisSrsCheckBox->setEnabled( isSrsRunning );
+    mPlot3dOptionsUi->ZaxisSrsCheckBox->setEnabled( isSrsRunning );
+
+    mPlot3dOptionsDlg.exec();
 }
 
 
@@ -1336,9 +1771,6 @@ uint16_t SpectralViewer::getDaqDelayUs()
 
 //!************************************************************************
 //! Handle for nullifying the values of the accelerometer
-//! This is useful if static accelerations, e.g. due to Earth's gravity,
-//! need to be subtracted for all following readings. After this action only
-//! dynamic accelerations will be read.
 //!
 //! @returns nothing
 //!************************************************************************
@@ -1353,69 +1785,7 @@ uint16_t SpectralViewer::getDaqDelayUs()
                            \n\nContinue?",
                            QMessageBox::Yes | QMessageBox::No ) )
     {
-        bool statusOk = false;
-
-        if( mAccelInstance )
-        {
-            uint16_t delayUs = getDaqDelayUs();
-
-            if( mDaqThread && mDaqThread->isRunning() )
-            {
-                mDaqThread->pause();
-                mDaqThread->usleep( delayUs );
-            }
-
-            double xAxisAvg = 0;
-            double yAxisAvg = 0;
-            double zAxisAvg = 0;
-            const uint8_t SAMPLES_COUNT = 10;
-            bool readOk = true;
-
-            for( uint8_t i = 0; i < SAMPLES_COUNT; i++ )
-            {
-                double xAxisValue = 0;
-                double yAxisValue = 0;
-                double zAxisValue = 0;
-                readOk = mAccelInstance->getAccelerationsOnAllAxes( &xAxisValue, &yAxisValue, &zAxisValue );
-
-                if( readOk )
-                {
-                    xAxisAvg += xAxisValue;
-                    yAxisAvg += yAxisValue;
-                    zAxisAvg += zAxisValue;
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            if( readOk )
-            {
-                xAxisAvg /= SAMPLES_COUNT;
-                yAxisAvg /= SAMPLES_COUNT;
-                zAxisAvg /= SAMPLES_COUNT;
-
-                statusOk = mAccelInstance->setAxisOffset( Adxl355Adxl357Common::AXIS_X, xAxisAvg );
-
-                if( statusOk )
-                {
-                    statusOk = mAccelInstance->setAxisOffset( Adxl355Adxl357Common::AXIS_Y, yAxisAvg );
-                }
-
-                if( statusOk )
-                {
-                    statusOk = mAccelInstance->setAxisOffset( Adxl355Adxl357Common::AXIS_Z, zAxisAvg );
-                }
-            }
-
-            if( mDaqThread && mDaqThread->isRunning() )
-            {
-                mDaqThread->resume();
-            }
-        }
-
-        if( statusOk )
+        if( nullifyValuesAccel() )
         {
             QMessageBox::information( this, APP_NAME, "Nullifying accelerations succeeded.", QMessageBox::Ok );
         }
@@ -1428,318 +1798,591 @@ uint16_t SpectralViewer::getDaqDelayUs()
 
 
 //!************************************************************************
-//! Handle for closing the plot options
+//! Open a file with a configuration
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handlePlotOptionsClosed()
+/* slot */ void SpectralViewer::handleOpenConfiguration()
+{
+    if( mIsConfigSetupRunning )
+    {
+        if( QMessageBox::Yes == QMessageBox::question( this, APP_NAME,
+                               "A configuration setup is already running.\
+                               \n\nStop running the current setup, so that a new one can be loaded?",
+                               QMessageBox::Yes | QMessageBox::No ) )
+        {
+            stopConfiguration();
+        }
+    }
+
+    if( !mIsConfigSetupRunning )
+    {
+        QString selectedFilter;
+        QString fileName = QFileDialog::getOpenFileName( this,
+                                                         "Open configuration file",
+                                                         "",
+                                                         "Configuration files (*.cfg);;All files (*)",
+                                                         &selectedFilter,
+                                                         QFileDialog::DontUseNativeDialog
+                                                        );
+
+        std::string inputFilename = fileName.toStdString();
+        std::ifstream inputFile( inputFilename );
+
+        if( inputFile.is_open() )
+        {
+            bool parseOk = true;
+            const std::string DELIM = "=";
+            std::string currentLine;
+            size_t currentLineIndex = 0;
+
+            std::vector<std::string> configFieldsName =
+            {
+                "type",
+                "range",
+                "odr",
+                "nullify",
+                "samples_count"
+            };
+
+            while( std::getline( inputFile, currentLine ) )
+            {
+                std::vector<std::string> substringsVec;
+                size_t pos = 0;
+
+                while( ( pos = currentLine.find( DELIM ) ) != std::string::npos )
+                {
+                    substringsVec.push_back( currentLine.substr( 0, pos ) );
+                    currentLine.erase( 0, pos + DELIM.length() );
+                }
+
+                if( currentLine.size() )
+                {
+                    substringsVec.push_back( currentLine );
+                }
+
+                if( currentLineIndex < configFieldsName.size() )
+                {
+                    if( 2 == substringsVec.size() )
+                    {
+                        if( substringsVec.at( 0 ) == configFieldsName.at( currentLineIndex ) )
+                        {
+                            switch( currentLineIndex )
+                            {
+                                case 0:
+                                    if( compareIstr( ACCEL_NAME.toStdString(), substringsVec.at( 1 ) ) )
+                                    {
+                                        mConfig.accelerometerType = ACCEL_NAME;
+                                    }
+                                    else
+                                    {
+                                        parseOk = false;
+                                    }
+                                    break;
+
+                                case 1:
+                                    if( compareIstr( "ADXL355", mConfig.accelerometerType.toStdString() ) )
+                                    {
+                                        if( compareIstr( "2g", substringsVec.at( 1 ) ) )
+                                        {
+                                            mConfig.range = Adxl355Adxl357Common::ACCELERATION_RANGE_2G;
+                                        }
+                                        else if( compareIstr( "4g", substringsVec.at( 1 ) ) )
+                                        {
+                                            mConfig.range = Adxl355Adxl357Common::ACCELERATION_RANGE_4G;
+                                        }
+                                        else if( compareIstr( "8g", substringsVec.at( 1 ) ) )
+                                        {
+                                            mConfig.range = Adxl355Adxl357Common::ACCELERATION_RANGE_8G;
+                                        }
+                                        else
+                                        {
+                                            parseOk = false;
+                                        }
+                                    }
+                                    else if( compareIstr( "ADXL357", mConfig.accelerometerType.toStdString() ) )
+                                    {
+                                        if( compareIstr( "10g", substringsVec.at( 1 ) ) )
+                                        {
+                                            mConfig.range = Adxl355Adxl357Common::ACCELERATION_RANGE_10G;
+                                        }
+                                        else if( compareIstr( "20g", substringsVec.at( 1 ) ) )
+                                        {
+                                            mConfig.range = Adxl355Adxl357Common::ACCELERATION_RANGE_20G;
+                                        }
+                                        else if( compareIstr( "40g", substringsVec.at( 1 ) ) )
+                                        {
+                                            mConfig.range = Adxl355Adxl357Common::ACCELERATION_RANGE_40G;
+                                        }
+                                        else
+                                        {
+                                            parseOk = false;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        parseOk = false;
+                                    }
+                                    break;
+
+                                case 2:
+                                    {
+                                        QString qs = QString::fromStdString( substringsVec.at( 1 ) );
+                                        double odrHz = qs.toDouble();
+
+                                        if( 4000 == odrHz )
+                                        {
+                                            mConfig.odrSetting = Adxl355Adxl357Common::ODR_SETTING_4000;
+                                        }
+                                        else if( 2000 == odrHz )
+                                        {
+                                            mConfig.odrSetting = Adxl355Adxl357Common::ODR_SETTING_2000;
+                                        }
+                                        else if( 1000 == odrHz )
+                                        {
+                                            mConfig.odrSetting = Adxl355Adxl357Common::ODR_SETTING_1000;
+                                        }
+                                        else if( 500 == odrHz )
+                                        {
+                                            mConfig.odrSetting = Adxl355Adxl357Common::ODR_SETTING_500;
+                                        }
+                                        else if( 250 == odrHz )
+                                        {
+                                            mConfig.odrSetting = Adxl355Adxl357Common::ODR_SETTING_250;
+                                        }
+                                        else if( 125 == odrHz )
+                                        {
+                                            mConfig.odrSetting = Adxl355Adxl357Common::ODR_SETTING_125;
+                                        }
+                                        else if( 62.5 == odrHz )
+                                        {
+                                            mConfig.odrSetting = Adxl355Adxl357Common::ODR_SETTING_62_5;
+                                        }
+                                        else if( 31.25 == odrHz )
+                                        {
+                                            mConfig.odrSetting = Adxl355Adxl357Common::ODR_SETTING_31_25;
+                                        }
+                                        else if( 15.625 == odrHz )
+                                        {
+                                            mConfig.odrSetting = Adxl355Adxl357Common::ODR_SETTING_15_625;
+                                        }
+                                        else if( 7.8125 == odrHz )
+                                        {
+                                            mConfig.odrSetting = Adxl355Adxl357Common::ODR_SETTING_7_8125;
+                                        }
+                                        else if( 3.90625 == odrHz )
+                                        {
+                                            mConfig.odrSetting = Adxl355Adxl357Common::ODR_SETTING_3_90625;
+                                        }
+                                        else
+                                        {
+                                            parseOk = false;
+                                        }
+                                    }
+                                    break;
+
+                                case 3:
+                                    if( compareIstr( "yes", substringsVec.at( 1 ) ) )
+                                    {
+                                        mConfig.nullifyActive = true;
+                                    }
+                                    else if( compareIstr( "no", substringsVec.at( 1 ) ) )
+                                    {
+                                        mConfig.nullifyActive = false;
+                                    }
+                                    else
+                                    {
+                                        parseOk = false;
+                                    }
+                                    break;
+
+                                case 4:
+                                    {
+                                        uint32_t samplesCount = std::stoul( substringsVec.at( 1 ) );
+
+                                        if( samplesCount )
+                                        {
+                                            mConfig.samplesCount = samplesCount;
+                                        }
+                                        else
+                                        {
+                                            parseOk = false;
+                                        }
+                                    }
+                                    break;
+
+                                default:
+                                    break;
+                            }
+                        }
+                        else
+                        {
+                            parseOk = false;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        parseOk = false;
+                        break;
+                    }
+                }
+                else
+                {
+                    // already passed all lines of interest
+                    break;
+                }
+
+                currentLineIndex++;
+            }
+
+            inputFile.close();
+
+            if( parseOk )
+            {
+                double daqDuration = mConfig.samplesCount / mAccelInstance->getOdrFrequency( mConfig.odrSetting );
+                QString messageText = "The configuration was parsed successfully.\n";
+                messageText += "Total data acquisition duration will be ";
+                messageText += convertSeconds2String( daqDuration );
+                messageText += "\n\nDo you want to run this setup?";
+
+                if( QMessageBox::Yes == QMessageBox::question( this, APP_NAME, messageText, QMessageBox::Yes | QMessageBox::No ) )
+                {
+                    runConfiguration( inputFilename );
+                }
+            }
+            else
+            {
+                QString msg = "The selected file does not contain any valid configuration.";
+                QMessageBox msgBox;
+                msgBox.setText( msg );
+                msgBox.exec();
+            }
+        }
+        else if( fileName.size() )
+        {
+            QString msg = "Could not open file \"" + fileName + "\".";
+            QMessageBox msgBox;
+            msgBox.setText( msg );
+            msgBox.exec();
+        }
+    }
+}
+
+
+//!************************************************************************
+//! Handle for closing the 2D plot options
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handlePlot2dOptionsClosed()
 {
     //////////////////////////
     /// X axis
     //////////////////////////
-    if( mPlotOptions.xAxis.at( Plot::PLOT_TYPE_TRANSIENT ) )
+    if( mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT ) )
     {
-        if( !mPlotXtransient )
+        if( !mPlot2dXtransient )
         {
-            mPlotXtransient = new Plot( this, Plot::PLOT_TYPE_TRANSIENT, Adxl355Adxl357Common::AXIS_X );
-            connect( mPlotXtransient, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot(int, int) ) );
-            connect( this->mVibrationHndlInstance, SIGNAL( haveNewData() ), mPlotXtransient, SLOT( receiveNewData() ) );
+            mPlot2dXtransient = new Plot2d( this, Plot2d::PLOT_2D_TYPE_TRANSIENT, Adxl355Adxl357Common::AXIS_X );
+            connect( mPlot2dXtransient, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot2d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewData() ), mPlot2dXtransient, SLOT( receiveNewData() ) );
         }
 
-        if( mPlotXtransient->isHidden() )
+        if( mPlot2dXtransient->isHidden() )
         {
-            mPlotXtransient->show();
-        }
-    }
-    else if( mPlotXtransient )
-    {
-        mPlotXtransient->close();
-    }
-
-
-    if( mPlotOptions.xAxis.at( Plot::PLOT_TYPE_FFT ) )
-    {
-        if( !mPlotXfft )
-        {
-            mPlotXfft = new Plot( this, Plot::PLOT_TYPE_FFT, Adxl355Adxl357Common::AXIS_X );
-            connect( mPlotXfft, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot(int, int) ) );
-            connect( this->mVibrationHndlInstance, SIGNAL( haveNewFftBins(int) ), mPlotXfft, SLOT( receiveNewFft(int) ) );
-        }
-
-        if( mPlotXfft->isHidden() )
-        {
-            mPlotXfft->show();
+            mPlot2dXtransient->show();
         }
     }
-    else if( mPlotXfft )
+    else if( mPlot2dXtransient )
     {
-        mPlotXfft->close();
+        mPlot2dXtransient->close();
     }
 
 
-    if( mPlotOptions.xAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) )
+    if( mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_FFT ) )
     {
-        if( !mPlotXperiodogram )
+        if( !mPlot2dXfft )
         {
-            mPlotXperiodogram = new Plot( this, Plot::PLOT_TYPE_PERIODOGRAM, Adxl355Adxl357Common::AXIS_X );
-            connect( mPlotXperiodogram, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot(int, int) ) );
-            connect( this->mVibrationHndlInstance, SIGNAL( haveNewPeriodogram(int) ), mPlotXperiodogram, SLOT( receiveNewPeriodogram(int) ) );
+            mPlot2dXfft = new Plot2d( this, Plot2d::PLOT_2D_TYPE_FFT, Adxl355Adxl357Common::AXIS_X );
+            connect( mPlot2dXfft, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot2d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewFftBins(int) ), mPlot2dXfft, SLOT( receiveNewFft(int) ) );
         }
 
-        if( mPlotXperiodogram->isHidden() )
+        if( mPlot2dXfft->isHidden() )
         {
-            mPlotXperiodogram->show();
-        }
-    }
-    else if( mPlotXperiodogram )
-    {
-        mPlotXperiodogram->close();
-    }
-
-
-    if( mPlotOptions.xAxis.at( Plot::PLOT_TYPE_SRS ) )
-    {
-        if( !mPlotXsrs )
-        {
-            mPlotXsrs = new Plot( this, Plot::PLOT_TYPE_SRS, Adxl355Adxl357Common::AXIS_X );
-            connect( mPlotXsrs, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot(int, int) ) );
-            connect( this->mVibrationHndlInstance, SIGNAL( haveNewSrs(int) ), mPlotXsrs, SLOT( receiveNewSrs(int) ) );
-        }
-
-        if( mPlotXsrs->isHidden() )
-        {
-            mPlotXsrs->show();
+            mPlot2dXfft->show();
         }
     }
-    else if( mPlotXsrs )
+    else if( mPlot2dXfft )
     {
-        mPlotXsrs->close();
+        mPlot2dXfft->close();
     }
 
 
-    if( mPlotOptions.xAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) )
+    if( mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM ) )
     {
-        if( !mPlotXcepstrum )
+        if( !mPlot2dXperiodogram )
         {
-            mPlotXcepstrum = new Plot( this, Plot::PLOT_TYPE_CEPSTRUM, Adxl355Adxl357Common::AXIS_X );
-            connect( mPlotXcepstrum, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot(int, int) ) );
-            connect( this->mVibrationHndlInstance, SIGNAL( haveNewCepstrum(int) ), mPlotXcepstrum, SLOT( receiveNewCepstrum(int) ) );
+            mPlot2dXperiodogram = new Plot2d( this, Plot2d::PLOT_2D_TYPE_PERIODOGRAM, Adxl355Adxl357Common::AXIS_X );
+            connect( mPlot2dXperiodogram, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot2d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewPeriodogram(int) ), mPlot2dXperiodogram, SLOT( receiveNewPeriodogram(int) ) );
         }
 
-        if( mPlotXcepstrum->isHidden() )
+        if( mPlot2dXperiodogram->isHidden() )
         {
-            mPlotXcepstrum->show();
+            mPlot2dXperiodogram->show();
         }
     }
-    else if( mPlotXcepstrum )
+    else if( mPlot2dXperiodogram )
     {
-        mPlotXcepstrum->close();
+        mPlot2dXperiodogram->close();
+    }
+
+
+    if( mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) )
+    {
+        if( !mPlot2dXsrs )
+        {
+            mPlot2dXsrs = new Plot2d( this, Plot2d::PLOT_2D_TYPE_SRS, Adxl355Adxl357Common::AXIS_X );
+            connect( mPlot2dXsrs, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot2d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewSrs(int) ), mPlot2dXsrs, SLOT( receiveNewSrs(int) ) );
+        }
+
+        if( mPlot2dXsrs->isHidden() )
+        {
+            mPlot2dXsrs->show();
+        }
+    }
+    else if( mPlot2dXsrs )
+    {
+        mPlot2dXsrs->close();
+    }
+
+
+    if( mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM ) )
+    {
+        if( !mPlot2dXcepstrum )
+        {
+            mPlot2dXcepstrum = new Plot2d( this, Plot2d::PLOT_2D_TYPE_CEPSTRUM, Adxl355Adxl357Common::AXIS_X );
+            connect( mPlot2dXcepstrum, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot2d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewCepstrum(int) ), mPlot2dXcepstrum, SLOT( receiveNewCepstrum(int) ) );
+        }
+
+        if( mPlot2dXcepstrum->isHidden() )
+        {
+            mPlot2dXcepstrum->show();
+        }
+    }
+    else if( mPlot2dXcepstrum )
+    {
+        mPlot2dXcepstrum->close();
     }
 
 
     //////////////////////////
     /// Y axis
     //////////////////////////
-    if( mPlotOptions.yAxis.at( Plot::PLOT_TYPE_TRANSIENT ) )
+    if( mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT ) )
     {
-        if( !mPlotYtransient )
+        if( !mPlot2dYtransient )
         {
-            mPlotYtransient = new Plot( this, Plot::PLOT_TYPE_TRANSIENT, Adxl355Adxl357Common::AXIS_Y );
-            connect( mPlotYtransient, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot(int, int) ) );
-            connect( this->mVibrationHndlInstance, SIGNAL( haveNewData() ), mPlotYtransient, SLOT( receiveNewData() ) );
+            mPlot2dYtransient = new Plot2d( this, Plot2d::PLOT_2D_TYPE_TRANSIENT, Adxl355Adxl357Common::AXIS_Y );
+            connect( mPlot2dYtransient, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot2d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewData() ), mPlot2dYtransient, SLOT( receiveNewData() ) );
         }
 
-        if( mPlotYtransient->isHidden() )
+        if( mPlot2dYtransient->isHidden() )
         {
-            mPlotYtransient->show();
-        }
-    }
-    else if( mPlotYtransient )
-    {
-        mPlotYtransient->close();
-    }
-
-
-    if( mPlotOptions.yAxis.at( Plot::PLOT_TYPE_FFT ) )
-    {
-        if( !mPlotYfft )
-        {
-            mPlotYfft = new Plot( this, Plot::PLOT_TYPE_FFT, Adxl355Adxl357Common::AXIS_Y );
-            connect( mPlotYfft, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot(int, int) ) );
-            connect( this->mVibrationHndlInstance, SIGNAL( haveNewFftBins(int) ), mPlotYfft, SLOT( receiveNewFft(int) ) );
-        }
-
-        if( mPlotYfft->isHidden() )
-        {
-            mPlotYfft->show();
+            mPlot2dYtransient->show();
         }
     }
-    else if( mPlotYfft )
+    else if( mPlot2dYtransient )
     {
-        mPlotYfft->close();
+        mPlot2dYtransient->close();
     }
 
 
-    if( mPlotOptions.yAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) )
+    if( mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_FFT ) )
     {
-        if( !mPlotYperiodogram )
+        if( !mPlot2dYfft )
         {
-            mPlotYperiodogram = new Plot( this, Plot::PLOT_TYPE_PERIODOGRAM, Adxl355Adxl357Common::AXIS_Y );
-            connect( mPlotYperiodogram, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot(int, int) ) );
-            connect( this->mVibrationHndlInstance, SIGNAL( haveNewPeriodogram(int) ), mPlotYperiodogram, SLOT( receiveNewPeriodogram(int) ) );
+            mPlot2dYfft = new Plot2d( this, Plot2d::PLOT_2D_TYPE_FFT, Adxl355Adxl357Common::AXIS_Y );
+            connect( mPlot2dYfft, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot2d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewFftBins(int) ), mPlot2dYfft, SLOT( receiveNewFft(int) ) );
         }
 
-        if( mPlotYperiodogram->isHidden() )
+        if( mPlot2dYfft->isHidden() )
         {
-            mPlotYperiodogram->show();
-        }
-    }
-    else if( mPlotYperiodogram )
-    {
-        mPlotYperiodogram->close();
-    }
-
-
-    if( mPlotOptions.yAxis.at( Plot::PLOT_TYPE_SRS ) )
-    {
-        if( !mPlotYsrs )
-        {
-            mPlotYsrs = new Plot( this, Plot::PLOT_TYPE_SRS, Adxl355Adxl357Common::AXIS_Y );
-            connect( mPlotYsrs, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot(int, int) ) );
-            connect( this->mVibrationHndlInstance, SIGNAL( haveNewSrs(int) ), mPlotYsrs, SLOT( receiveNewSrs(int) ) );
-        }
-
-        if( mPlotYsrs->isHidden() )
-        {
-            mPlotYsrs->show();
+            mPlot2dYfft->show();
         }
     }
-    else if( mPlotYsrs )
+    else if( mPlot2dYfft )
     {
-        mPlotYsrs->close();
+        mPlot2dYfft->close();
     }
 
 
-    if( mPlotOptions.yAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) )
+    if( mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM ) )
     {
-        if( !mPlotYcepstrum )
+        if( !mPlot2dYperiodogram )
         {
-            mPlotYcepstrum = new Plot( this, Plot::PLOT_TYPE_CEPSTRUM, Adxl355Adxl357Common::AXIS_Y );
-            connect( mPlotYcepstrum, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot(int, int) ) );
-            connect( this->mVibrationHndlInstance, SIGNAL( haveNewCepstrum(int) ), mPlotYcepstrum, SLOT( receiveNewCepstrum(int) ) );
+            mPlot2dYperiodogram = new Plot2d( this, Plot2d::PLOT_2D_TYPE_PERIODOGRAM, Adxl355Adxl357Common::AXIS_Y );
+            connect( mPlot2dYperiodogram, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot2d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewPeriodogram(int) ), mPlot2dYperiodogram, SLOT( receiveNewPeriodogram(int) ) );
         }
 
-        if( mPlotYcepstrum->isHidden() )
+        if( mPlot2dYperiodogram->isHidden() )
         {
-            mPlotYcepstrum->show();
+            mPlot2dYperiodogram->show();
         }
     }
-    else if( mPlotYcepstrum )
+    else if( mPlot2dYperiodogram )
     {
-        mPlotYcepstrum->close();
+        mPlot2dYperiodogram->close();
+    }
+
+
+    if( mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) )
+    {
+        if( !mPlot2dYsrs )
+        {
+            mPlot2dYsrs = new Plot2d( this, Plot2d::PLOT_2D_TYPE_SRS, Adxl355Adxl357Common::AXIS_Y );
+            connect( mPlot2dYsrs, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot2d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewSrs(int) ), mPlot2dYsrs, SLOT( receiveNewSrs(int) ) );
+        }
+
+        if( mPlot2dYsrs->isHidden() )
+        {
+            mPlot2dYsrs->show();
+        }
+    }
+    else if( mPlot2dYsrs )
+    {
+        mPlot2dYsrs->close();
+    }
+
+
+    if( mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM ) )
+    {
+        if( !mPlot2dYcepstrum )
+        {
+            mPlot2dYcepstrum = new Plot2d( this, Plot2d::PLOT_2D_TYPE_CEPSTRUM, Adxl355Adxl357Common::AXIS_Y );
+            connect( mPlot2dYcepstrum, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot2d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewCepstrum(int) ), mPlot2dYcepstrum, SLOT( receiveNewCepstrum(int) ) );
+        }
+
+        if( mPlot2dYcepstrum->isHidden() )
+        {
+            mPlot2dYcepstrum->show();
+        }
+    }
+    else if( mPlot2dYcepstrum )
+    {
+        mPlot2dYcepstrum->close();
     }
 
 
     //////////////////////////
     /// Z axis
     //////////////////////////
-    if( mPlotOptions.zAxis.at( Plot::PLOT_TYPE_TRANSIENT ) )
+    if( mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT ) )
     {
-        if( !mPlotZtransient )
+        if( !mPlot2dZtransient )
         {
-            mPlotZtransient = new Plot( this, Plot::PLOT_TYPE_TRANSIENT, Adxl355Adxl357Common::AXIS_Z );
-            connect( mPlotZtransient, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot(int, int) ) );
-            connect( this->mVibrationHndlInstance, SIGNAL( haveNewData() ), mPlotZtransient, SLOT( receiveNewData() ) );
+            mPlot2dZtransient = new Plot2d( this, Plot2d::PLOT_2D_TYPE_TRANSIENT, Adxl355Adxl357Common::AXIS_Z );
+            connect( mPlot2dZtransient, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot2d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewData() ), mPlot2dZtransient, SLOT( receiveNewData() ) );
         }
 
-        if( mPlotZtransient->isHidden() )
+        if( mPlot2dZtransient->isHidden() )
         {
-            mPlotZtransient->show();
-        }
-    }
-    else if( mPlotZtransient )
-    {
-        mPlotZtransient->close();
-    }
-
-
-    if( mPlotOptions.zAxis.at( Plot::PLOT_TYPE_FFT ) )
-    {
-        if( !mPlotZfft )
-        {
-            mPlotZfft = new Plot( this, Plot::PLOT_TYPE_FFT, Adxl355Adxl357Common::AXIS_Z );
-            connect( mPlotZfft, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot(int, int) ) );
-            connect( this->mVibrationHndlInstance, SIGNAL( haveNewFftBins(int) ), mPlotZfft, SLOT( receiveNewFft(int) ) );
-        }
-
-        if( mPlotZfft->isHidden() )
-        {
-            mPlotZfft->show();
+            mPlot2dZtransient->show();
         }
     }
-    else if( mPlotZfft )
+    else if( mPlot2dZtransient )
     {
-        mPlotZfft->close();
+        mPlot2dZtransient->close();
     }
 
 
-    if( mPlotOptions.zAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) )
+    if( mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_FFT ) )
     {
-        if( !mPlotZperiodogram )
+        if( !mPlot2dZfft )
         {
-            mPlotZperiodogram = new Plot( this, Plot::PLOT_TYPE_PERIODOGRAM, Adxl355Adxl357Common::AXIS_Z );
-            connect( mPlotZperiodogram, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot(int, int) ) );
-            connect( this->mVibrationHndlInstance, SIGNAL( haveNewPeriodogram(int) ), mPlotZperiodogram, SLOT( receiveNewPeriodogram(int) ) );
+            mPlot2dZfft = new Plot2d( this, Plot2d::PLOT_2D_TYPE_FFT, Adxl355Adxl357Common::AXIS_Z );
+            connect( mPlot2dZfft, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot2d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewFftBins(int) ), mPlot2dZfft, SLOT( receiveNewFft(int) ) );
         }
 
-        if( mPlotZperiodogram->isHidden() )
+        if( mPlot2dZfft->isHidden() )
         {
-            mPlotZperiodogram->show();
-        }
-    }
-    else if( mPlotZperiodogram )
-    {
-        mPlotZperiodogram->close();
-    }
-
-
-    if( mPlotOptions.zAxis.at( Plot::PLOT_TYPE_SRS ) )
-    {
-        if( !mPlotZsrs )
-        {
-            mPlotZsrs = new Plot( this, Plot::PLOT_TYPE_SRS, Adxl355Adxl357Common::AXIS_Z );
-            connect( mPlotZsrs, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot(int, int) ) );
-            connect( this->mVibrationHndlInstance, SIGNAL( haveNewSrs(int) ), mPlotZsrs, SLOT( receiveNewSrs(int) ) );
-        }
-
-        if( mPlotZsrs->isHidden() )
-        {
-            mPlotZsrs->show();
+            mPlot2dZfft->show();
         }
     }
-    else if( mPlotZsrs )
+    else if( mPlot2dZfft )
     {
-        mPlotZsrs->close();
+        mPlot2dZfft->close();
     }
 
 
-    if( mPlotOptions.zAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) )
+    if( mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM ) )
     {
-        if( !mPlotZcepstrum )
+        if( !mPlot2dZperiodogram )
         {
-            mPlotZcepstrum = new Plot( this, Plot::PLOT_TYPE_CEPSTRUM, Adxl355Adxl357Common::AXIS_Z );
-            connect( mPlotZcepstrum, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot(int, int) ) );
-            connect( this->mVibrationHndlInstance, SIGNAL( haveNewCepstrum(int) ), mPlotZcepstrum, SLOT( receiveNewCepstrum(int) ) );
+            mPlot2dZperiodogram = new Plot2d( this, Plot2d::PLOT_2D_TYPE_PERIODOGRAM, Adxl355Adxl357Common::AXIS_Z );
+            connect( mPlot2dZperiodogram, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot2d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewPeriodogram(int) ), mPlot2dZperiodogram, SLOT( receiveNewPeriodogram(int) ) );
         }
 
-        if( mPlotZcepstrum->isHidden() )
+        if( mPlot2dZperiodogram->isHidden() )
         {
-            mPlotZcepstrum->show();
+            mPlot2dZperiodogram->show();
         }
     }
-    else if( mPlotZcepstrum )
+    else if( mPlot2dZperiodogram )
     {
-        mPlotZcepstrum->close();
+        mPlot2dZperiodogram->close();
+    }
+
+
+    if( mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) )
+    {
+        if( !mPlot2dZsrs )
+        {
+            mPlot2dZsrs = new Plot2d( this, Plot2d::PLOT_2D_TYPE_SRS, Adxl355Adxl357Common::AXIS_Z );
+            connect( mPlot2dZsrs, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot2d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewSrs(int) ), mPlot2dZsrs, SLOT( receiveNewSrs(int) ) );
+        }
+
+        if( mPlot2dZsrs->isHidden() )
+        {
+            mPlot2dZsrs->show();
+        }
+    }
+    else if( mPlot2dZsrs )
+    {
+        mPlot2dZsrs->close();
+    }
+
+
+    if( mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM ) )
+    {
+        if( !mPlot2dZcepstrum )
+        {
+            mPlot2dZcepstrum = new Plot2d( this, Plot2d::PLOT_2D_TYPE_CEPSTRUM, Adxl355Adxl357Common::AXIS_Z );
+            connect( mPlot2dZcepstrum, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot2d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewCepstrum(int) ), mPlot2dZcepstrum, SLOT( receiveNewCepstrum(int) ) );
+        }
+
+        if( mPlot2dZcepstrum->isHidden() )
+        {
+            mPlot2dZcepstrum->show();
+        }
+    }
+    else if( mPlot2dZcepstrum )
+    {
+        mPlot2dZcepstrum->close();
     }
 
 
@@ -1761,115 +2404,561 @@ uint16_t SpectralViewer::getDaqDelayUs()
 
     updatePlotsFrequencyParams();
 
-    mPlotOptionsDlg.close();
+    mPlot2dOptionsDlg.close();
 }
 
 
 //!************************************************************************
-//! Handle for deselecting all plots
+//! Handle for closing the 3D plot options
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handlePlot3dOptionsClosed()
+{
+    //////////////////////////
+    /// X axis
+    //////////////////////////
+    if( mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT ) )
+    {
+        if( !mPlot3dXtransient )
+        {
+            mPlot3dXtransient = new Plot3d( this, Plot3d::PLOT_3D_TYPE_TRANSIENT, Adxl355Adxl357Common::AXIS_X );
+            connect( mPlot3dXtransient, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot3d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewData() ), mPlot3dXtransient, SLOT( receiveNewData() ) );
+        }
+
+        if( mPlot3dXtransient->isHidden() )
+        {
+            mPlot3dXtransient->show();
+        }
+    }
+    else if( mPlot3dXtransient )
+    {
+        mPlot3dXtransient->close();
+    }
+
+
+    if( mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_FFT ) )
+    {
+        if( !mPlot3dXfft )
+        {
+            mPlot3dXfft = new Plot3d( this, Plot3d::PLOT_3D_TYPE_FFT, Adxl355Adxl357Common::AXIS_X );
+            connect( mPlot3dXfft, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot3d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewFftBins(int) ), mPlot3dXfft, SLOT( receiveNewFft(int) ) );
+        }
+
+        if( mPlot3dXfft->isHidden() )
+        {
+            mPlot3dXfft->show();
+        }
+    }
+    else if( mPlot3dXfft )
+    {
+        mPlot3dXfft->close();
+    }
+
+
+    if( mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM ) )
+    {
+        if( !mPlot3dXperiodogram )
+        {
+            mPlot3dXperiodogram = new Plot3d( this, Plot3d::PLOT_3D_TYPE_PERIODOGRAM, Adxl355Adxl357Common::AXIS_X );
+            connect( mPlot3dXperiodogram, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot3d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewPeriodogram(int) ), mPlot3dXperiodogram, SLOT( receiveNewPeriodogram(int) ) );
+        }
+
+        if( mPlot3dXperiodogram->isHidden() )
+        {
+            mPlot3dXperiodogram->show();
+        }
+    }
+    else if( mPlot3dXperiodogram )
+    {
+        mPlot3dXperiodogram->close();
+    }
+
+
+    if( mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) )
+    {
+        if( !mPlot3dXsrs )
+        {
+            mPlot3dXsrs = new Plot3d( this, Plot3d::PLOT_3D_TYPE_SRS, Adxl355Adxl357Common::AXIS_X );
+            connect( mPlot3dXsrs, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot3d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewSrs(int) ), mPlot3dXsrs, SLOT( receiveNewSrs(int) ) );
+        }
+
+        if( mPlot3dXsrs->isHidden() )
+        {
+            mPlot3dXsrs->show();
+        }
+    }
+    else if( mPlot3dXsrs )
+    {
+        mPlot3dXsrs->close();
+    }
+
+
+    if( mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM ) )
+    {
+        if( !mPlot3dXcepstrum )
+        {
+            mPlot3dXcepstrum = new Plot3d( this, Plot3d::PLOT_3D_TYPE_CEPSTRUM, Adxl355Adxl357Common::AXIS_X );
+            connect( mPlot3dXcepstrum, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot3d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewCepstrum(int) ), mPlot3dXcepstrum, SLOT( receiveNewCepstrum(int) ) );
+        }
+
+        if( mPlot3dXcepstrum->isHidden() )
+        {
+            mPlot3dXcepstrum->show();
+        }
+    }
+    else if( mPlot3dXcepstrum )
+    {
+        mPlot3dXcepstrum->close();
+    }
+
+
+    //////////////////////////
+    /// Y axis
+    //////////////////////////
+    if( mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT ) )
+    {
+        if( !mPlot3dYtransient )
+        {
+            mPlot3dYtransient = new Plot3d( this, Plot3d::PLOT_3D_TYPE_TRANSIENT, Adxl355Adxl357Common::AXIS_Y );
+            connect( mPlot3dYtransient, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot3d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewData() ), mPlot3dYtransient, SLOT( receiveNewData() ) );
+        }
+
+        if( mPlot3dYtransient->isHidden() )
+        {
+            mPlot3dYtransient->show();
+        }
+    }
+    else if( mPlot3dYtransient )
+    {
+        mPlot3dYtransient->close();
+    }
+
+
+    if( mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_FFT ) )
+    {
+        if( !mPlot3dYfft )
+        {
+            mPlot3dYfft = new Plot3d( this, Plot3d::PLOT_3D_TYPE_FFT, Adxl355Adxl357Common::AXIS_Y );
+            connect( mPlot3dYfft, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot3d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewFftBins(int) ), mPlot3dYfft, SLOT( receiveNewFft(int) ) );
+        }
+
+        if( mPlot3dYfft->isHidden() )
+        {
+            mPlot3dYfft->show();
+        }
+    }
+    else if( mPlot3dYfft )
+    {
+        mPlot3dYfft->close();
+    }
+
+
+    if( mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM ) )
+    {
+        if( !mPlot3dYperiodogram )
+        {
+            mPlot3dYperiodogram = new Plot3d( this, Plot3d::PLOT_3D_TYPE_PERIODOGRAM, Adxl355Adxl357Common::AXIS_Y );
+            connect( mPlot3dYperiodogram, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot3d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewPeriodogram(int) ), mPlot3dYperiodogram, SLOT( receiveNewPeriodogram(int) ) );
+        }
+
+        if( mPlot3dYperiodogram->isHidden() )
+        {
+            mPlot3dYperiodogram->show();
+        }
+    }
+    else if( mPlot3dYperiodogram )
+    {
+        mPlot3dYperiodogram->close();
+    }
+
+
+    if( mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) )
+    {
+        if( !mPlot3dYsrs )
+        {
+            mPlot3dYsrs = new Plot3d( this, Plot3d::PLOT_3D_TYPE_SRS, Adxl355Adxl357Common::AXIS_Y );
+            connect( mPlot3dYsrs, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot3d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewSrs(int) ), mPlot3dYsrs, SLOT( receiveNewSrs(int) ) );
+        }
+
+        if( mPlot3dYsrs->isHidden() )
+        {
+            mPlot3dYsrs->show();
+        }
+    }
+    else if( mPlot3dYsrs )
+    {
+        mPlot3dYsrs->close();
+    }
+
+
+    if( mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM ) )
+    {
+        if( !mPlot3dYcepstrum )
+        {
+            mPlot3dYcepstrum = new Plot3d( this, Plot3d::PLOT_3D_TYPE_CEPSTRUM, Adxl355Adxl357Common::AXIS_Y );
+            connect( mPlot3dYcepstrum, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot3d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewCepstrum(int) ), mPlot3dYcepstrum, SLOT( receiveNewCepstrum(int) ) );
+        }
+
+        if( mPlot3dYcepstrum->isHidden() )
+        {
+            mPlot3dYcepstrum->show();
+        }
+    }
+    else if( mPlot3dYcepstrum )
+    {
+        mPlot3dYcepstrum->close();
+    }
+
+
+    //////////////////////////
+    /// Z axis
+    //////////////////////////
+    if( mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT ) )
+    {
+        if( !mPlot3dZtransient )
+        {
+            mPlot3dZtransient = new Plot3d( this, Plot3d::PLOT_3D_TYPE_TRANSIENT, Adxl355Adxl357Common::AXIS_Z );
+            connect( mPlot3dZtransient, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot3d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewData() ), mPlot3dZtransient, SLOT( receiveNewData() ) );
+        }
+
+        if( mPlot3dZtransient->isHidden() )
+        {
+            mPlot3dZtransient->show();
+        }
+    }
+    else if( mPlot3dZtransient )
+    {
+        mPlot3dZtransient->close();
+    }
+
+
+    if( mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_FFT ) )
+    {
+        if( !mPlot3dZfft )
+        {
+            mPlot3dZfft = new Plot3d( this, Plot3d::PLOT_3D_TYPE_FFT, Adxl355Adxl357Common::AXIS_Z );
+            connect( mPlot3dZfft, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot3d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewFftBins(int) ), mPlot3dZfft, SLOT( receiveNewFft(int) ) );
+        }
+
+        if( mPlot3dZfft->isHidden() )
+        {
+            mPlot3dZfft->show();
+        }
+    }
+    else if( mPlot3dZfft )
+    {
+        mPlot3dZfft->close();
+    }
+
+
+    if( mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM ) )
+    {
+        if( !mPlot3dZperiodogram )
+        {
+            mPlot3dZperiodogram = new Plot3d( this, Plot3d::PLOT_3D_TYPE_PERIODOGRAM, Adxl355Adxl357Common::AXIS_Z );
+            connect( mPlot3dZperiodogram, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot3d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewPeriodogram(int) ), mPlot3dZperiodogram, SLOT( receiveNewPeriodogram(int) ) );
+        }
+
+        if( mPlot3dZperiodogram->isHidden() )
+        {
+            mPlot3dZperiodogram->show();
+        }
+    }
+    else if( mPlot3dZperiodogram )
+    {
+        mPlot3dZperiodogram->close();
+    }
+
+
+    if( mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) )
+    {
+        if( !mPlot3dZsrs )
+        {
+            mPlot3dZsrs = new Plot3d( this, Plot3d::PLOT_3D_TYPE_SRS, Adxl355Adxl357Common::AXIS_Z );
+            connect( mPlot3dZsrs, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot3d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewSrs(int) ), mPlot3dZsrs, SLOT( receiveNewSrs(int) ) );
+        }
+
+        if( mPlot3dZsrs->isHidden() )
+        {
+            mPlot3dZsrs->show();
+        }
+    }
+    else if( mPlot3dZsrs )
+    {
+        mPlot3dZsrs->close();
+    }
+
+
+    if( mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM ) )
+    {
+        if( !mPlot3dZcepstrum )
+        {
+            mPlot3dZcepstrum = new Plot3d( this, Plot3d::PLOT_3D_TYPE_CEPSTRUM, Adxl355Adxl357Common::AXIS_Z );
+            connect( mPlot3dZcepstrum, SIGNAL( closeSignal(int, int) ), this, SLOT( receiveClosedPlot3d(int, int) ) );
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewCepstrum(int) ), mPlot3dZcepstrum, SLOT( receiveNewCepstrum(int) ) );
+        }
+
+        if( mPlot3dZcepstrum->isHidden() )
+        {
+            mPlot3dZcepstrum->show();
+        }
+    }
+    else if( mPlot3dZcepstrum )
+    {
+        mPlot3dZcepstrum->close();
+    }
+
+
+    uint16_t delayUs = getDaqDelayUs();
+
+    if( mDaqThread && mDaqThread->isRunning() )
+    {
+        mDaqThread->pause();
+        mDaqThread->usleep( delayUs );
+    }
+
+    updatePlotsVerticalMaxTransient();
+
+    if( mDaqThread && mDaqThread->isRunning() )
+    {
+        mDaqThread->updateDelay( delayUs );
+        mDaqThread->resume();
+    }
+
+    updatePlotsFrequencyParams();
+
+    mPlot3dOptionsDlg.close();
+}
+
+
+//!************************************************************************
+//! Handle for deselecting all 2D plots
 //! *** X axis ***
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handlePlotOptionsXDeselectAll()
+/* slot */ void SpectralViewer::handlePlot2dOptionsXDeselectAll()
 {
-    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_TRANSIENT ) = false;
-    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_FFT ) = false;
-    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) = false;
-    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_SRS ) = false;
-    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) = false;
+    mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT ) = false;
+    mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_FFT ) = false;
+    mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM ) = false;
+    mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) = false;
+    mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM ) = false;
 
-    updatePlotOptionsCheckBoxesX();
+    updatePlot2dOptionsCheckBoxesX();
 }
 
 
 //!************************************************************************
-//! Handle for selecting all plots
+//! Handle for selecting all 2D plots
 //! *** X axis ***
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handlePlotOptionsXSelectAll()
+/* slot */ void SpectralViewer::handlePlot2dOptionsXSelectAll()
 {
-    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_TRANSIENT ) = true;
-    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_FFT ) = true;
-    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) = true;
-    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_SRS ) = mFreqAnalysisInstance->getSrsIsRunning();
-    mPlotOptions.xAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) = true;
+    mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT ) = true;
+    mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_FFT ) = true;
+    mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM ) = true;
+    mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) = mFreqAnalysisInstance->getSrsIsRunning();
+    mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM ) = true;
 
-    updatePlotOptionsCheckBoxesX();
+    updatePlot2dOptionsCheckBoxesX();
 }
 
 
 //!************************************************************************
-//! Handle for deselecting all plots
+//! Handle for deselecting all 2D plots
 //! *** Y axis ***
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handlePlotOptionsYDeselectAll()
+/* slot */ void SpectralViewer::handlePlot2dOptionsYDeselectAll()
 {
-    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_TRANSIENT ) = false;
-    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_FFT ) = false;
-    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) = false;
-    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_SRS ) = false;
-    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) = false;
+    mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT ) = false;
+    mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_FFT ) = false;
+    mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM ) = false;
+    mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) = false;
+    mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM ) = false;
 
-    updatePlotOptionsCheckBoxesY();
+    updatePlot2dOptionsCheckBoxesY();
 }
 
 
 //!************************************************************************
-//! Handle for selecting all plots
+//! Handle for selecting all 2D plots
 //! *** Y axis ***
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handlePlotOptionsYSelectAll()
+/* slot */ void SpectralViewer::handlePlot2dOptionsYSelectAll()
 {
-    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_TRANSIENT ) = true;
-    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_FFT ) = true;
-    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) = true;
-    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_SRS ) = mFreqAnalysisInstance->getSrsIsRunning();
-    mPlotOptions.yAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) = true;
+    mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT ) = true;
+    mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_FFT ) = true;
+    mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM ) = true;
+    mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) = mFreqAnalysisInstance->getSrsIsRunning();
+    mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM ) = true;
 
-    updatePlotOptionsCheckBoxesY();
+    updatePlot2dOptionsCheckBoxesY();
 }
 
 
 //!************************************************************************
-//! Handle for deselecting all plots
+//! Handle for deselecting all 2D plots
 //! *** Z axis ***
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handlePlotOptionsZDeselectAll()
+/* slot */ void SpectralViewer::handlePlot2dOptionsZDeselectAll()
 {
-    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_TRANSIENT ) = false;
-    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_FFT ) = false;
-    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) = false;
-    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_SRS ) = false;
-    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) = false;
+    mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT ) = false;
+    mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_FFT ) = false;
+    mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM ) = false;
+    mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) = false;
+    mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM ) = false;
 
-    updatePlotOptionsCheckBoxesZ();
+    updatePlot2dOptionsCheckBoxesZ();
 }
 
 
 //!************************************************************************
-//! Handle for selecting all plots
+//! Handle for selecting all 2D plots
 //! *** Z axis ***
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::handlePlotOptionsZSelectAll()
+/* slot */ void SpectralViewer::handlePlot2dOptionsZSelectAll()
 {
-    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_TRANSIENT ) = true;
-    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_FFT ) = true;
-    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) = true;
-    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_SRS ) = mFreqAnalysisInstance->getSrsIsRunning();
-    mPlotOptions.zAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) = true;
+    mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT ) = true;
+    mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_FFT ) = true;
+    mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM ) = true;
+    mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) = mFreqAnalysisInstance->getSrsIsRunning();
+    mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM ) = true;
 
-    updatePlotOptionsCheckBoxesZ();
+    updatePlot2dOptionsCheckBoxesZ();
+}
+
+
+//!************************************************************************
+//! Handle for deselecting all 3D plots
+//! *** X axis ***
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handlePlot3dOptionsXDeselectAll()
+{
+    mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT ) = false;
+    mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_FFT ) = false;
+    mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM ) = false;
+    mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) = false;
+    mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM ) = false;
+
+    updatePlot3dOptionsCheckBoxesX();
+}
+
+
+//!************************************************************************
+//! Handle for selecting all 3D plots
+//! *** X axis ***
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handlePlot3dOptionsXSelectAll()
+{
+    mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT ) = true;
+    mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_FFT ) = true;
+    mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM ) = true;
+    mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) = mFreqAnalysisInstance->getSrsIsRunning();
+    mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM ) = true;
+
+    updatePlot3dOptionsCheckBoxesX();
+}
+
+
+//!************************************************************************
+//! Handle for deselecting all 3D plots
+//! *** Y axis ***
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handlePlot3dOptionsYDeselectAll()
+{
+    mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT ) = false;
+    mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_FFT ) = false;
+    mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM ) = false;
+    mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) = false;
+    mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM ) = false;
+
+    updatePlot3dOptionsCheckBoxesY();
+}
+
+
+//!************************************************************************
+//! Handle for selecting all 3D plots
+//! *** Y axis ***
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handlePlot3dOptionsYSelectAll()
+{
+    mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT ) = true;
+    mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_FFT ) = true;
+    mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM ) = true;
+    mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) = mFreqAnalysisInstance->getSrsIsRunning();
+    mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM ) = true;
+
+    updatePlot3dOptionsCheckBoxesY();
+}
+
+
+//!************************************************************************
+//! Handle for deselecting all 3D plots
+//! *** Z axis ***
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handlePlot3dOptionsZDeselectAll()
+{
+    mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT ) = false;
+    mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_FFT ) = false;
+    mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM ) = false;
+    mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) = false;
+    mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM ) = false;
+
+    updatePlot3dOptionsCheckBoxesZ();
+}
+
+
+//!************************************************************************
+//! Handle for selecting all 3D plots
+//! *** Z axis ***
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::handlePlot3dOptionsZSelectAll()
+{
+    mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT ) = true;
+    mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_FFT ) = true;
+    mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM ) = true;
+    mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) = mFreqAnalysisInstance->getSrsIsRunning();
+    mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM ) = true;
+
+    updatePlot3dOptionsCheckBoxesZ();
 }
 
 
@@ -1885,59 +2974,8 @@ uint16_t SpectralViewer::getDaqDelayUs()
                            \nsimilar to a power-on reset.\
                            \n\nContinue?",
                            QMessageBox::Yes | QMessageBox::No ) )
-   {
-        bool statusOk = false;
-
-        if( mAccelInstance )
-        {
-            uint16_t delayUs = getDaqDelayUs();
-
-            if( mDaqThread && mDaqThread->isRunning() )
-            {
-                mDaqThread->pause();
-                mDaqThread->usleep( delayUs );
-            }
-
-            statusOk = mAccelInstance->reset();
-
-            if( statusOk )
-            {
-#if BUILD_I2C_HIGH_SPEED
-                mAccelInstance->setOdr( Adxl355Adxl357Common::ODR_SETTING_4000 );
-#elif BUILD_I2C_FAST_PLUS
-                mAccelInstance->setOdr( Adxl355Adxl357Common::ODR_SETTING_2000 );
-#elif BUILD_I2C_FAST
-                mAccelInstance->setOdr( Adxl355Adxl357Common::ODR_SETTING_500 );
-#else
-                mAccelInstance->setOdr( Adxl355Adxl357Common::ODR_SETTING_125 );
-#endif
-
-                mFreqAnalysisInstance->setFftSps( mAccelInstance->getOdrFrequency() );
-                updatePlotsFrequencyParams();
-                updatePlotsVerticalMaxTransient();
-
-                mAccelInstance->enableStandbyMode( false );
-            }
-
-            if( mDaqThread && mDaqThread->isRunning() )
-            {
-                delayUs = getDaqDelayUs();
-                mDaqThread->updateDelay( delayUs );
-                mDaqThread->resume();
-            }
-
-            if( statusOk )
-            {
-                statusOk = true;
-
-                if( mAccelerometerDlg.isVisible() )
-                {
-                    updateAccelDialogControls();
-                }
-            }
-        }
-
-        if( statusOk )
+    {
+        if( resetAccel() )
         {
             QMessageBox::information( this, APP_NAME, "Reset succeeded.", QMessageBox::Ok );
         }
@@ -2196,65 +3234,128 @@ void SpectralViewer::initFreqAnalysisDialogControls()
 
 
 //!************************************************************************
-//! Initialize the controls from the plot options dialog
+//! Initialize the controls from the 2D plot options dialog
 //!
 //! @returns: nothing
 //!************************************************************************
-void SpectralViewer::initPlotOptionsControls()
+void SpectralViewer::initPlot2dOptionsControls()
 {
-    mPlotOptions.xAxis =
+    mPlot2dOptions.xAxis =
     {
-        { Plot::PLOT_TYPE_TRANSIENT,   false },
-        { Plot::PLOT_TYPE_FFT,         false },
-        { Plot::PLOT_TYPE_PERIODOGRAM, false },
-        { Plot::PLOT_TYPE_SRS,         false },
-        { Plot::PLOT_TYPE_CEPSTRUM,    false }
+        { Plot2d::PLOT_2D_TYPE_TRANSIENT,   false },
+        { Plot2d::PLOT_2D_TYPE_FFT,         false },
+        { Plot2d::PLOT_2D_TYPE_PERIODOGRAM, false },
+        { Plot2d::PLOT_2D_TYPE_SRS,         false },
+        { Plot2d::PLOT_2D_TYPE_CEPSTRUM,    false }
     };
 
-    mPlotOptions.yAxis = mPlotOptions.xAxis;
-    mPlotOptions.zAxis = mPlotOptions.xAxis;
+    mPlot2dOptions.yAxis = mPlot2dOptions.xAxis;
+    mPlot2dOptions.zAxis = mPlot2dOptions.xAxis;
 
-    updatePlotOptionsButtonsX();
-    updatePlotOptionsButtonsY();
-    updatePlotOptionsButtonsZ();
+    updatePlot2dOptionsButtonsX();
+    updatePlot2dOptionsButtonsY();
+    updatePlot2dOptionsButtonsZ();
 
     //////////////////////////
     /// X axis
     //////////////////////////
-    connect( mPlotOptionsUi->XaxisTransientCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlotOptionXtransient( bool ) ) );
-    connect( mPlotOptionsUi->XaxisFftCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlotOptionXfft( bool ) ) );
-    connect( mPlotOptionsUi->XaxisPeriodogramCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlotOptionXperiodogram( bool ) ) );
-    connect( mPlotOptionsUi->XaxisSrsCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlotOptionXsrs( bool ) ) );
-    connect( mPlotOptionsUi->XaxisCepstrumCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlotOptionXcepstrum( bool ) ) );
+    connect( mPlot2dOptionsUi->XaxisTransientCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot2dOptionXtransient( bool ) ) );
+    connect( mPlot2dOptionsUi->XaxisFftCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot2dOptionXfft( bool ) ) );
+    connect( mPlot2dOptionsUi->XaxisPeriodogramCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot2dOptionXperiodogram( bool ) ) );
+    connect( mPlot2dOptionsUi->XaxisSrsCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot2dOptionXsrs( bool ) ) );
+    connect( mPlot2dOptionsUi->XaxisCepstrumCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot2dOptionXcepstrum( bool ) ) );
 
-    connect( mPlotOptionsUi->XaxisSelectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlotOptionsXSelectAll() ) );
-    connect( mPlotOptionsUi->XaxisDeselectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlotOptionsXDeselectAll() ) );
+    connect( mPlot2dOptionsUi->XaxisSelectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlot2dOptionsXSelectAll() ) );
+    connect( mPlot2dOptionsUi->XaxisDeselectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlot2dOptionsXDeselectAll() ) );
 
     //////////////////////////
     /// Y axis
     //////////////////////////
-    connect( mPlotOptionsUi->YaxisTransientCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlotOptionYtransient( bool ) ) );
-    connect( mPlotOptionsUi->YaxisFftCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlotOptionYfft( bool ) ) );
-    connect( mPlotOptionsUi->YaxisPeriodogramCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlotOptionYperiodogram( bool ) ) );
-    connect( mPlotOptionsUi->YaxisSrsCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlotOptionYsrs( bool ) ) );
-    connect( mPlotOptionsUi->YaxisCepstrumCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlotOptionYcepstrum( bool ) ) );
+    connect( mPlot2dOptionsUi->YaxisTransientCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot2dOptionYtransient( bool ) ) );
+    connect( mPlot2dOptionsUi->YaxisFftCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot2dOptionYfft( bool ) ) );
+    connect( mPlot2dOptionsUi->YaxisPeriodogramCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot2dOptionYperiodogram( bool ) ) );
+    connect( mPlot2dOptionsUi->YaxisSrsCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot2dOptionYsrs( bool ) ) );
+    connect( mPlot2dOptionsUi->YaxisCepstrumCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot2dOptionYcepstrum( bool ) ) );
 
-    connect( mPlotOptionsUi->YaxisSelectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlotOptionsYSelectAll() ) );
-    connect( mPlotOptionsUi->YaxisDeselectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlotOptionsYDeselectAll() ) );
+    connect( mPlot2dOptionsUi->YaxisSelectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlot2dOptionsYSelectAll() ) );
+    connect( mPlot2dOptionsUi->YaxisDeselectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlot2dOptionsYDeselectAll() ) );
 
     //////////////////////////
     /// Z axis
     //////////////////////////
-    connect( mPlotOptionsUi->ZaxisTransientCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlotOptionZtransient( bool ) ) );
-    connect( mPlotOptionsUi->ZaxisFftCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlotOptionZfft( bool ) ) );
-    connect( mPlotOptionsUi->ZaxisPeriodogramCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlotOptionZperiodogram( bool ) ) );
-    connect( mPlotOptionsUi->ZaxisSrsCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlotOptionZsrs( bool ) ) );
-    connect( mPlotOptionsUi->ZaxisCepstrumCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlotOptionZcepstrum( bool ) ) );
+    connect( mPlot2dOptionsUi->ZaxisTransientCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot2dOptionZtransient( bool ) ) );
+    connect( mPlot2dOptionsUi->ZaxisFftCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot2dOptionZfft( bool ) ) );
+    connect( mPlot2dOptionsUi->ZaxisPeriodogramCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot2dOptionZperiodogram( bool ) ) );
+    connect( mPlot2dOptionsUi->ZaxisSrsCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot2dOptionZsrs( bool ) ) );
+    connect( mPlot2dOptionsUi->ZaxisCepstrumCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot2dOptionZcepstrum( bool ) ) );
 
-    connect( mPlotOptionsUi->ZaxisSelectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlotOptionsZSelectAll() ) );
-    connect( mPlotOptionsUi->ZaxisDeselectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlotOptionsZDeselectAll() ) );
+    connect( mPlot2dOptionsUi->ZaxisSelectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlot2dOptionsZSelectAll() ) );
+    connect( mPlot2dOptionsUi->ZaxisDeselectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlot2dOptionsZDeselectAll() ) );
 
-    connect( mPlotOptionsUi->OkButton, SIGNAL( clicked() ), this, SLOT( handlePlotOptionsClosed() ) );
+    connect( mPlot2dOptionsUi->OkButton, SIGNAL( clicked() ), this, SLOT( handlePlot2dOptionsClosed() ) );
+}
+
+
+//!************************************************************************
+//! Initialize the controls from the 3D plot options dialog
+//!
+//! @returns: nothing
+//!************************************************************************
+void SpectralViewer::initPlot3dOptionsControls()
+{
+    mPlot3dOptions.xAxis =
+    {
+        { Plot3d::PLOT_3D_TYPE_TRANSIENT,   false },
+        { Plot3d::PLOT_3D_TYPE_FFT,         false },
+        { Plot3d::PLOT_3D_TYPE_PERIODOGRAM, false },
+        { Plot3d::PLOT_3D_TYPE_SRS,         false },
+        { Plot3d::PLOT_3D_TYPE_CEPSTRUM,    false }
+    };
+
+    mPlot3dOptions.yAxis = mPlot3dOptions.xAxis;
+    mPlot3dOptions.zAxis = mPlot3dOptions.xAxis;
+
+    updatePlot3dOptionsButtonsX();
+    updatePlot3dOptionsButtonsY();
+    updatePlot3dOptionsButtonsZ();
+
+    //////////////////////////
+    /// X axis
+    //////////////////////////
+    connect( mPlot3dOptionsUi->XaxisTransientCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot3dOptionXtransient( bool ) ) );
+    connect( mPlot3dOptionsUi->XaxisFftCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot3dOptionXfft( bool ) ) );
+    connect( mPlot3dOptionsUi->XaxisPeriodogramCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot3dOptionXperiodogram( bool ) ) );
+    connect( mPlot3dOptionsUi->XaxisSrsCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot3dOptionXsrs( bool ) ) );
+    connect( mPlot3dOptionsUi->XaxisCepstrumCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot3dOptionXcepstrum( bool ) ) );
+
+    connect( mPlot3dOptionsUi->XaxisSelectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlot3dOptionsXSelectAll() ) );
+    connect( mPlot3dOptionsUi->XaxisDeselectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlot3dOptionsXDeselectAll() ) );
+
+    //////////////////////////
+    /// Y axis
+    //////////////////////////
+    connect( mPlot3dOptionsUi->YaxisTransientCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot3dOptionYtransient( bool ) ) );
+    connect( mPlot3dOptionsUi->YaxisFftCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot3dOptionYfft( bool ) ) );
+    connect( mPlot3dOptionsUi->YaxisPeriodogramCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot3dOptionYperiodogram( bool ) ) );
+    connect( mPlot3dOptionsUi->YaxisSrsCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot3dOptionYsrs( bool ) ) );
+    connect( mPlot3dOptionsUi->YaxisCepstrumCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot3dOptionYcepstrum( bool ) ) );
+
+    connect( mPlot3dOptionsUi->YaxisSelectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlot3dOptionsYSelectAll() ) );
+    connect( mPlot3dOptionsUi->YaxisDeselectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlot3dOptionsYDeselectAll() ) );
+
+    //////////////////////////
+    /// Z axis
+    //////////////////////////
+    connect( mPlot3dOptionsUi->ZaxisTransientCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot3dOptionZtransient( bool ) ) );
+    connect( mPlot3dOptionsUi->ZaxisFftCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot3dOptionZfft( bool ) ) );
+    connect( mPlot3dOptionsUi->ZaxisPeriodogramCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot3dOptionZperiodogram( bool ) ) );
+    connect( mPlot3dOptionsUi->ZaxisSrsCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot3dOptionZsrs( bool ) ) );
+    connect( mPlot3dOptionsUi->ZaxisCepstrumCheckBox, SIGNAL( toggled(bool) ), this, SLOT( handleChangedPlot3dOptionZcepstrum( bool ) ) );
+
+    connect( mPlot3dOptionsUi->ZaxisSelectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlot3dOptionsZSelectAll() ) );
+    connect( mPlot3dOptionsUi->ZaxisDeselectAllButton, SIGNAL( clicked() ), this, SLOT( handlePlot3dOptionsZDeselectAll() ) );
+
+    connect( mPlot3dOptionsUi->OkButton, SIGNAL( clicked() ), this, SLOT( handlePlot3dOptionsClosed() ) );
 }
 
 
@@ -2311,6 +3412,82 @@ void SpectralViewer::initVibMonDialogControls()
 
 
 //!************************************************************************
+//! Nullify the values of the accelerometer
+//! This is useful if static accelerations, e.g. due to Earth's gravity,
+//! need to be subtracted for all following readings. After this action only
+//! dynamic accelerations will be read.
+//!
+//! @returns true for success
+//!************************************************************************
+bool SpectralViewer::nullifyValuesAccel()
+{
+    bool statusOk = false;
+
+    if( mAccelInstance )
+    {
+        uint16_t delayUs = getDaqDelayUs();
+
+        if( mDaqThread && mDaqThread->isRunning() )
+        {
+            mDaqThread->pause();
+            mDaqThread->usleep( delayUs );
+        }
+
+        double xAxisAvg = 0;
+        double yAxisAvg = 0;
+        double zAxisAvg = 0;
+        const uint8_t SAMPLES_COUNT = 10;
+        bool readOk = true;
+
+        for( uint8_t i = 0; i < SAMPLES_COUNT; i++ )
+        {
+            double xAxisValue = 0;
+            double yAxisValue = 0;
+            double zAxisValue = 0;
+            readOk = mAccelInstance->getAccelerationsOnAllAxes( &xAxisValue, &yAxisValue, &zAxisValue );
+
+            if( readOk )
+            {
+                xAxisAvg += xAxisValue;
+                yAxisAvg += yAxisValue;
+                zAxisAvg += zAxisValue;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        if( readOk )
+        {
+            xAxisAvg /= SAMPLES_COUNT;
+            yAxisAvg /= SAMPLES_COUNT;
+            zAxisAvg /= SAMPLES_COUNT;
+
+            statusOk = mAccelInstance->setAxisOffset( Adxl355Adxl357Common::AXIS_X, xAxisAvg );
+
+            if( statusOk )
+            {
+                statusOk = mAccelInstance->setAxisOffset( Adxl355Adxl357Common::AXIS_Y, yAxisAvg );
+            }
+
+            if( statusOk )
+            {
+                statusOk = mAccelInstance->setAxisOffset( Adxl355Adxl357Common::AXIS_Z, zAxisAvg );
+            }
+        }
+
+        if( mDaqThread && mDaqThread->isRunning() )
+        {
+            mDaqThread->resume();
+        }
+    }
+
+    return statusOk;
+}
+
+
+//!************************************************************************
 //! Read the temperature from the on-chip sensor in the GUI thread
 //!
 //! @returns: nothing
@@ -2335,35 +3512,127 @@ void SpectralViewer::readTemperature()
 
 
 //!************************************************************************
-//! Receive closed event from a plot window
+//! Receive closed event from a 2D plot window
 //!
 //! @returns: nothing
 //!************************************************************************
-/* slot */ void SpectralViewer::receiveClosedPlot
+/* slot */ void SpectralViewer::receiveClosedPlot2d
     (
     int aType,          //!< type of closed window
     int aAxis           //!< axis of closed window
     )
 {
-    Plot::PlotType type = static_cast<Plot::PlotType>( aType );
+    Plot2d::Plot2dType type = static_cast<Plot2d::Plot2dType>( aType );
     Adxl355Adxl357Common::Axis axis = static_cast<Adxl355Adxl357Common::Axis>( aAxis );
 
     switch( axis )
     {
         case Adxl355Adxl357Common::AXIS_X:
-            mPlotOptions.xAxis.at( type ) = false;
+            mPlot2dOptions.xAxis.at( type ) = false;
             break;
 
         case Adxl355Adxl357Common::AXIS_Y:
-            mPlotOptions.yAxis.at( type ) = false;
+            mPlot2dOptions.yAxis.at( type ) = false;
             break;
 
         case Adxl355Adxl357Common::AXIS_Z:
-            mPlotOptions.zAxis.at( type ) = false;
+            mPlot2dOptions.zAxis.at( type ) = false;
             break;
 
         default:
             break;
+    }
+}
+
+
+//!************************************************************************
+//! Receive closed event from a 3D plot window
+//!
+//! @returns: nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::receiveClosedPlot3d
+    (
+    int aType,          //!< type of closed window
+    int aAxis           //!< axis of closed window
+    )
+{
+    Plot3d::Plot3dType type = static_cast<Plot3d::Plot3dType>( aType );
+    Adxl355Adxl357Common::Axis axis = static_cast<Adxl355Adxl357Common::Axis>( aAxis );
+
+    switch( axis )
+    {
+        case Adxl355Adxl357Common::AXIS_X:
+            mPlot3dOptions.xAxis.at( type ) = false;
+            break;
+
+        case Adxl355Adxl357Common::AXIS_Y:
+            mPlot3dOptions.yAxis.at( type ) = false;
+            break;
+
+        case Adxl355Adxl357Common::AXIS_Z:
+            mPlot3dOptions.zAxis.at( type ) = false;
+            break;
+
+        default:
+            break;
+    }
+}
+
+
+//!************************************************************************
+//! Receive new accelerometer data sent by the DAQ thread
+//!
+//! @returns: nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::receiveNewData
+    (
+    double  aXaccel,    //!< acceleration on X axis
+    double  aYaccel,    //!< acceleration on Y axis
+    double  aZaccel     //!< acceleration on Z axis
+    )
+{
+    if( mIsConfigSetupRunning && mDumpRemainingSamples )
+    {
+        if( mDumpCsvFile.is_open() )
+        {
+            double accelXms2 = this->mVibrationHndlInstance->convertAccelG2Ms2( aXaccel );
+            double accelYms2 = this->mVibrationHndlInstance->convertAccelG2Ms2( aYaccel );
+            double accelZms2 = this->mVibrationHndlInstance->convertAccelG2Ms2( aZaccel );
+
+            double odrHz = mAccelInstance->getOdrFrequency();
+            double timeStampMs = 1000.0 * ( mConfig.samplesCount - mDumpRemainingSamples ) / odrHz;
+            QString qs;
+
+            if( 4000 == odrHz )
+            {
+                qs += QString::number( timeStampMs, 'f', 2 );
+            }
+            else if( 2000 == odrHz )
+            {
+                qs += QString::number( timeStampMs, 'f', 1 );
+            }
+            else
+            {
+                qs += QString::number( timeStampMs, 'f', 0 );
+            }
+
+            qs += ",";
+            qs += QString::number( accelXms2, 'f', 10 );
+            qs += ",";
+            qs += QString::number( accelYms2, 'f', 10 );
+            qs += ",";
+            qs += QString::number( accelZms2, 'f', 10 );
+            qs += "\n";
+
+            mDumpCsvFile << qs.toStdString();
+        }
+
+        mDumpRemainingSamples--;
+
+        if( 0 == mDumpRemainingSamples )
+        {
+            stopConfiguration();
+        }
     }
 }
 
@@ -2402,6 +3671,191 @@ void SpectralViewer::readTemperature()
             mAccelerometerUi->TemperatureValue->setText( QString::number( mTemperature, 'f', 1 ) + " [" +  DEG + "C]" );
         }
     }
+}
+
+
+//!************************************************************************
+//! Reset the accelerometer
+//!
+//! @returns: true at success
+//!************************************************************************
+bool SpectralViewer::resetAccel()
+{
+    bool statusOk = false;
+
+    if( mAccelInstance )
+    {
+        uint16_t delayUs = getDaqDelayUs();
+
+        if( mDaqThread && mDaqThread->isRunning() )
+        {
+            mDaqThread->pause();
+            mDaqThread->usleep( delayUs );
+        }
+
+        statusOk = mAccelInstance->reset();
+
+        if( statusOk )
+        {
+#if BUILD_I2C_HIGH_SPEED
+            mAccelInstance->setOdr( Adxl355Adxl357Common::ODR_SETTING_4000 );
+#elif BUILD_I2C_FAST_PLUS
+            mAccelInstance->setOdr( Adxl355Adxl357Common::ODR_SETTING_2000 );
+#elif BUILD_I2C_FAST
+            mAccelInstance->setOdr( Adxl355Adxl357Common::ODR_SETTING_500 );
+#else
+            mAccelInstance->setOdr( Adxl355Adxl357Common::ODR_SETTING_125 );
+#endif
+
+            mFreqAnalysisInstance->setFftSps( mAccelInstance->getOdrFrequency() );
+            updatePlotsFrequencyParams();
+            updatePlotsVerticalMaxTransient();
+
+            mAccelInstance->enableStandbyMode( false );
+        }
+
+        if( mDaqThread && mDaqThread->isRunning() )
+        {
+            delayUs = getDaqDelayUs();
+            mDaqThread->updateDelay( delayUs );
+            mDaqThread->resume();
+        }
+
+        if( statusOk )
+        {
+            if( mAccelerometerDlg.isVisible() )
+            {
+                updateAccelDialogControls();
+            }
+        }
+    }
+
+    return statusOk;
+}
+
+
+//!************************************************************************
+//! Run the parsed configuration
+//!
+//! @returns: nothing
+//!************************************************************************
+void SpectralViewer::runConfiguration
+    (
+    const std::string aInputFilename    //!< input filename
+    )
+{
+    bool statusOk = false;
+
+    if( mAccelInstance )
+    {
+        const uint16_t DELAY_US = 1000;
+        statusOk = resetAccel();
+        usleep( DELAY_US );
+
+        if( !statusOk )
+        {
+            QMessageBox::critical( this, APP_NAME, "Could not reset the accelerometer.", QMessageBox::Ok );
+        }
+
+        if( statusOk )
+        {
+            statusOk = changeAccelRange( mConfig.range );
+            usleep( DELAY_US );
+
+            if( !statusOk )
+            {
+                QMessageBox::critical( this, APP_NAME, "Could not change acceleration range.", QMessageBox::Ok );
+            }
+        }
+
+        if( statusOk )
+        {
+            if( mConfig.nullifyActive )
+            {                               
+                statusOk = nullifyValuesAccel();
+                usleep( DELAY_US );
+
+                if( !statusOk )
+                {
+                    QMessageBox::critical( this, APP_NAME, "Could not nullify the accelerations.", QMessageBox::Ok );
+                }
+            }
+        }
+
+        if( statusOk )
+        {
+            statusOk = changeAccelOdr( mConfig.odrSetting );
+            usleep( DELAY_US );
+
+            if( !statusOk )
+            {
+                QMessageBox::critical( this, APP_NAME, "Could not change the ODR.", QMessageBox::Ok );
+            }
+        }
+
+        if( statusOk )
+        {
+            statusOk = ( mConfig.samplesCount != 0 );
+
+            if( !statusOk )
+            {
+                QMessageBox::critical( this, APP_NAME, "Could not start with zero samples.", QMessageBox::Ok );
+            }
+            else
+            {
+                mDumpRemainingSamples = mConfig.samplesCount;
+            }
+        }
+
+        if( statusOk )
+        {
+            mMainUi->actionAccelerometer->setEnabled( false );
+            mDumpCsvFile.open( createCsvDataFilename( aInputFilename ) );
+
+            if( mDumpCsvFile.is_open() )
+            {
+                mDumpCsvFile << "timestamp,accX,accY,accZ\n";
+
+                const uint16_t DELAY_MS = 500;
+                QTimer::singleShot( DELAY_MS, this, SLOT( triggerConfigSetupRun() ) );
+            }
+            else
+            {
+                statusOk = false;
+            }
+        }
+    }
+}
+
+
+//!************************************************************************
+//! Update data when stopping a configuration
+//!
+//! @returns: nothing
+//!************************************************************************
+void SpectralViewer::stopConfiguration()
+{
+    mIsConfigSetupRunning = false;
+    mDumpRemainingSamples = 0;
+    mConfig.samplesCount = 0;
+
+    mMainUi->actionAccelerometer->setEnabled( true );
+
+    if( mDumpCsvFile.is_open() )
+    {
+        mDumpCsvFile.close();
+    }
+}
+
+
+//!************************************************************************
+//! Trigger the launch of configuration setup
+//!
+//! @returns: nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::triggerConfigSetupRun()
+{
+    mIsConfigSetupRunning = true;
 }
 
 
@@ -2467,130 +3921,253 @@ void SpectralViewer::updateAccelDialogControls()
 
 
 //!************************************************************************
-//! Update the plot options buttons for Select/Deselect All
+//! Update the 2D plot options buttons for Select/Deselect All
 //! *** X axis ***
 //!
 //! @returns: nothing
 //!************************************************************************
-void SpectralViewer::updatePlotOptionsButtonsX()
+void SpectralViewer::updatePlot2dOptionsButtonsX()
 {
-    bool allSelected = mPlotOptions.xAxis.at( Plot::PLOT_TYPE_TRANSIENT )
-                    && mPlotOptions.xAxis.at( Plot::PLOT_TYPE_FFT )
-                    && mPlotOptions.xAxis.at( Plot::PLOT_TYPE_PERIODOGRAM )
-                    && ( mPlotOptions.xAxis.at( Plot::PLOT_TYPE_SRS ) || !mFreqAnalysisInstance->getSrsIsRunning() )
-                    && mPlotOptions.xAxis.at( Plot::PLOT_TYPE_CEPSTRUM );
+    bool allSelected = mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT )
+                    && mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_FFT )
+                    && mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM )
+                    && ( mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) || !mFreqAnalysisInstance->getSrsIsRunning() )
+                    && mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM );
 
-    bool haveOne = mPlotOptions.xAxis.at( Plot::PLOT_TYPE_TRANSIENT )
-                || mPlotOptions.xAxis.at( Plot::PLOT_TYPE_FFT )
-                || mPlotOptions.xAxis.at( Plot::PLOT_TYPE_PERIODOGRAM )
-                || mPlotOptions.xAxis.at( Plot::PLOT_TYPE_SRS )
-                || mPlotOptions.xAxis.at( Plot::PLOT_TYPE_CEPSTRUM );
+    bool haveOne = mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT )
+                || mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_FFT )
+                || mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM )
+                || mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_SRS )
+                || mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM );
 
-    mPlotOptionsUi->XaxisSelectAllButton->setEnabled( !allSelected );
-    mPlotOptionsUi->XaxisDeselectAllButton->setEnabled( haveOne );
+    mPlot2dOptionsUi->XaxisSelectAllButton->setEnabled( !allSelected );
+    mPlot2dOptionsUi->XaxisDeselectAllButton->setEnabled( haveOne );
 }
 
 
 //!************************************************************************
-//! Update the plot options buttons for Select/Deselect All
+//! Update the 2D plot options buttons for Select/Deselect All
 //! *** Y axis ***
 //!
 //! @returns: nothing
 //!************************************************************************
-void SpectralViewer::updatePlotOptionsButtonsY()
+void SpectralViewer::updatePlot2dOptionsButtonsY()
 {
-    bool allSelected = mPlotOptions.yAxis.at( Plot::PLOT_TYPE_TRANSIENT )
-                    && mPlotOptions.yAxis.at( Plot::PLOT_TYPE_FFT )
-                    && mPlotOptions.yAxis.at( Plot::PLOT_TYPE_PERIODOGRAM )
-                    && ( mPlotOptions.yAxis.at( Plot::PLOT_TYPE_SRS ) || !mFreqAnalysisInstance->getSrsIsRunning() )
-                    && mPlotOptions.yAxis.at( Plot::PLOT_TYPE_CEPSTRUM );
+    bool allSelected = mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT )
+                    && mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_FFT )
+                    && mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM )
+                    && ( mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) || !mFreqAnalysisInstance->getSrsIsRunning() )
+                    && mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM );
 
-    bool haveOne = mPlotOptions.yAxis.at( Plot::PLOT_TYPE_TRANSIENT )
-                || mPlotOptions.yAxis.at( Plot::PLOT_TYPE_FFT )
-                || mPlotOptions.yAxis.at( Plot::PLOT_TYPE_PERIODOGRAM )
-                || mPlotOptions.yAxis.at( Plot::PLOT_TYPE_SRS )
-                || mPlotOptions.yAxis.at( Plot::PLOT_TYPE_CEPSTRUM );
+    bool haveOne = mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT )
+                || mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_FFT )
+                || mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM )
+                || mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_SRS )
+                || mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM );
 
-    mPlotOptionsUi->YaxisSelectAllButton->setEnabled( !allSelected );
-    mPlotOptionsUi->YaxisDeselectAllButton->setEnabled( haveOne );
+    mPlot2dOptionsUi->YaxisSelectAllButton->setEnabled( !allSelected );
+    mPlot2dOptionsUi->YaxisDeselectAllButton->setEnabled( haveOne );
 }
 
 
 //!************************************************************************
-//! Update the plot options buttons for Select/Deselect All
+//! Update the 2D plot options buttons for Select/Deselect All
 //! *** Z axis ***
 //!
 //! @returns: nothing
 //!************************************************************************
-void SpectralViewer::updatePlotOptionsButtonsZ()
+void SpectralViewer::updatePlot2dOptionsButtonsZ()
 {
-    bool allSelected = mPlotOptions.zAxis.at( Plot::PLOT_TYPE_TRANSIENT )
-                    && mPlotOptions.zAxis.at( Plot::PLOT_TYPE_FFT )
-                    && mPlotOptions.zAxis.at( Plot::PLOT_TYPE_PERIODOGRAM )
-                    && ( mPlotOptions.zAxis.at( Plot::PLOT_TYPE_SRS ) || !mFreqAnalysisInstance->getSrsIsRunning() )
-                    && mPlotOptions.zAxis.at( Plot::PLOT_TYPE_CEPSTRUM );
+    bool allSelected = mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT )
+                    && mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_FFT )
+                    && mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM )
+                    && ( mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) || !mFreqAnalysisInstance->getSrsIsRunning() )
+                    && mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM );
 
-    bool haveOne = mPlotOptions.zAxis.at( Plot::PLOT_TYPE_TRANSIENT )
-                || mPlotOptions.zAxis.at( Plot::PLOT_TYPE_FFT )
-                || mPlotOptions.zAxis.at( Plot::PLOT_TYPE_PERIODOGRAM )
-                || mPlotOptions.zAxis.at( Plot::PLOT_TYPE_SRS )
-                || mPlotOptions.zAxis.at( Plot::PLOT_TYPE_CEPSTRUM );
+    bool haveOne = mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT )
+                || mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_FFT )
+                || mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM )
+                || mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_SRS )
+                || mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM );
 
-    mPlotOptionsUi->ZaxisSelectAllButton->setEnabled( !allSelected );
-    mPlotOptionsUi->ZaxisDeselectAllButton->setEnabled( haveOne );
+    mPlot2dOptionsUi->ZaxisSelectAllButton->setEnabled( !allSelected );
+    mPlot2dOptionsUi->ZaxisDeselectAllButton->setEnabled( haveOne );
 }
 
 
 //!************************************************************************
-//! Update the plot options checkboxes
+//! Update the 2D plot options checkboxes
 //! *** X axis ***
 //!
 //! @returns: nothing
 //!************************************************************************
-void SpectralViewer::updatePlotOptionsCheckBoxesX()
+void SpectralViewer::updatePlot2dOptionsCheckBoxesX()
 {
-    mPlotOptionsUi->XaxisTransientCheckBox->setChecked( mPlotOptions.xAxis.at( Plot::PLOT_TYPE_TRANSIENT ) );
-    mPlotOptionsUi->XaxisFftCheckBox->setChecked( mPlotOptions.xAxis.at( Plot::PLOT_TYPE_FFT ) );
-    mPlotOptionsUi->XaxisPeriodogramCheckBox->setChecked( mPlotOptions.xAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) );
-    mPlotOptionsUi->XaxisSrsCheckBox->setChecked( mPlotOptions.xAxis.at( Plot::PLOT_TYPE_SRS ) );
-    mPlotOptionsUi->XaxisCepstrumCheckBox->setChecked( mPlotOptions.xAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) );
+    mPlot2dOptionsUi->XaxisTransientCheckBox->setChecked( mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT ) );
+    mPlot2dOptionsUi->XaxisFftCheckBox->setChecked( mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_FFT ) );
+    mPlot2dOptionsUi->XaxisPeriodogramCheckBox->setChecked( mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM ) );
+    mPlot2dOptionsUi->XaxisSrsCheckBox->setChecked( mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) );
+    mPlot2dOptionsUi->XaxisCepstrumCheckBox->setChecked( mPlot2dOptions.xAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM ) );
 }
 
 
 //!************************************************************************
-//! Update the plot options checkboxes
+//! Update the 2D plot options checkboxes
 //! *** Y axis ***
 //!
 //! @returns: nothing
 //!************************************************************************
-void SpectralViewer::updatePlotOptionsCheckBoxesY()
+void SpectralViewer::updatePlot2dOptionsCheckBoxesY()
 {
-    mPlotOptionsUi->YaxisTransientCheckBox->setChecked( mPlotOptions.yAxis.at( Plot::PLOT_TYPE_TRANSIENT ) );
-    mPlotOptionsUi->YaxisFftCheckBox->setChecked( mPlotOptions.yAxis.at( Plot::PLOT_TYPE_FFT ) );
-    mPlotOptionsUi->YaxisPeriodogramCheckBox->setChecked( mPlotOptions.yAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) );
-    mPlotOptionsUi->YaxisSrsCheckBox->setChecked( mPlotOptions.yAxis.at( Plot::PLOT_TYPE_SRS ) );
-    mPlotOptionsUi->YaxisCepstrumCheckBox->setChecked( mPlotOptions.yAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) );
+    mPlot2dOptionsUi->YaxisTransientCheckBox->setChecked( mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT ) );
+    mPlot2dOptionsUi->YaxisFftCheckBox->setChecked( mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_FFT ) );
+    mPlot2dOptionsUi->YaxisPeriodogramCheckBox->setChecked( mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM ) );
+    mPlot2dOptionsUi->YaxisSrsCheckBox->setChecked( mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) );
+    mPlot2dOptionsUi->YaxisCepstrumCheckBox->setChecked( mPlot2dOptions.yAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM ) );
 }
 
 
 //!************************************************************************
-//! Update the plot options checkboxes
+//! Update the 2D plot options checkboxes
 //! *** Z axis ***
 //!
 //! @returns: nothing
 //!************************************************************************
-void SpectralViewer::updatePlotOptionsCheckBoxesZ()
+void SpectralViewer::updatePlot2dOptionsCheckBoxesZ()
 {
-    mPlotOptionsUi->ZaxisTransientCheckBox->setChecked( mPlotOptions.zAxis.at( Plot::PLOT_TYPE_TRANSIENT ) );
-    mPlotOptionsUi->ZaxisFftCheckBox->setChecked( mPlotOptions.zAxis.at( Plot::PLOT_TYPE_FFT ) );
-    mPlotOptionsUi->ZaxisPeriodogramCheckBox->setChecked( mPlotOptions.zAxis.at( Plot::PLOT_TYPE_PERIODOGRAM ) );
-    mPlotOptionsUi->ZaxisSrsCheckBox->setChecked( mPlotOptions.zAxis.at( Plot::PLOT_TYPE_SRS ) );
-    mPlotOptionsUi->ZaxisCepstrumCheckBox->setChecked( mPlotOptions.zAxis.at( Plot::PLOT_TYPE_CEPSTRUM ) );
+    mPlot2dOptionsUi->ZaxisTransientCheckBox->setChecked( mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_TRANSIENT ) );
+    mPlot2dOptionsUi->ZaxisFftCheckBox->setChecked( mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_FFT ) );
+    mPlot2dOptionsUi->ZaxisPeriodogramCheckBox->setChecked( mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_PERIODOGRAM ) );
+    mPlot2dOptionsUi->ZaxisSrsCheckBox->setChecked( mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_SRS ) );
+    mPlot2dOptionsUi->ZaxisCepstrumCheckBox->setChecked( mPlot2dOptions.zAxis.at( Plot2d::PLOT_2D_TYPE_CEPSTRUM ) );
 }
 
 
 //!************************************************************************
-//! Update parameters concerning all plots
+//! Update the 3D plot options buttons for Select/Deselect All
+//! *** X axis ***
+//!
+//! @returns: nothing
+//!************************************************************************
+void SpectralViewer::updatePlot3dOptionsButtonsX()
+{
+    bool allSelected = mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT )
+                    && mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_FFT )
+                    && mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM )
+                    && ( mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) || !mFreqAnalysisInstance->getSrsIsRunning() )
+                    && mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM );
+
+    bool haveOne = mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT )
+                || mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_FFT )
+                || mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM )
+                || mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_SRS )
+                || mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM );
+
+    mPlot3dOptionsUi->XaxisSelectAllButton->setEnabled( !allSelected );
+    mPlot3dOptionsUi->XaxisDeselectAllButton->setEnabled( haveOne );
+}
+
+
+//!************************************************************************
+//! Update the 3D plot options buttons for Select/Deselect All
+//! *** Y axis ***
+//!
+//! @returns: nothing
+//!************************************************************************
+void SpectralViewer::updatePlot3dOptionsButtonsY()
+{
+    bool allSelected = mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT )
+                    && mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_FFT )
+                    && mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM )
+                    && ( mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) || !mFreqAnalysisInstance->getSrsIsRunning() )
+                    && mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM );
+
+    bool haveOne = mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT )
+                || mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_FFT )
+                || mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM )
+                || mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_SRS )
+                || mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM );
+
+    mPlot3dOptionsUi->YaxisSelectAllButton->setEnabled( !allSelected );
+    mPlot3dOptionsUi->YaxisDeselectAllButton->setEnabled( haveOne );
+}
+
+
+//!************************************************************************
+//! Update the 3D plot options buttons for Select/Deselect All
+//! *** Z axis ***
+//!
+//! @returns: nothing
+//!************************************************************************
+void SpectralViewer::updatePlot3dOptionsButtonsZ()
+{
+    bool allSelected = mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT )
+                    && mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_FFT )
+                    && mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM )
+                    && ( mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) || !mFreqAnalysisInstance->getSrsIsRunning() )
+                    && mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM );
+
+    bool haveOne = mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT )
+                || mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_FFT )
+                || mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM )
+                || mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_SRS )
+                || mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM );
+
+    mPlot3dOptionsUi->ZaxisSelectAllButton->setEnabled( !allSelected );
+    mPlot3dOptionsUi->ZaxisDeselectAllButton->setEnabled( haveOne );
+}
+
+
+//!************************************************************************
+//! Update the 3D plot options checkboxes
+//! *** X axis ***
+//!
+//! @returns: nothing
+//!************************************************************************
+void SpectralViewer::updatePlot3dOptionsCheckBoxesX()
+{
+    mPlot3dOptionsUi->XaxisTransientCheckBox->setChecked( mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT ) );
+    mPlot3dOptionsUi->XaxisFftCheckBox->setChecked( mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_FFT ) );
+    mPlot3dOptionsUi->XaxisPeriodogramCheckBox->setChecked( mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM ) );
+    mPlot3dOptionsUi->XaxisSrsCheckBox->setChecked( mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) );
+    mPlot3dOptionsUi->XaxisCepstrumCheckBox->setChecked( mPlot3dOptions.xAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM ) );
+}
+
+
+//!************************************************************************
+//! Update the 3D plot options checkboxes
+//! *** Y axis ***
+//!
+//! @returns: nothing
+//!************************************************************************
+void SpectralViewer::updatePlot3dOptionsCheckBoxesY()
+{
+    mPlot3dOptionsUi->YaxisTransientCheckBox->setChecked( mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT ) );
+    mPlot3dOptionsUi->YaxisFftCheckBox->setChecked( mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_FFT ) );
+    mPlot3dOptionsUi->YaxisPeriodogramCheckBox->setChecked( mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM ) );
+    mPlot3dOptionsUi->YaxisSrsCheckBox->setChecked( mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) );
+    mPlot3dOptionsUi->YaxisCepstrumCheckBox->setChecked( mPlot3dOptions.yAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM ) );
+}
+
+
+//!************************************************************************
+//! Update the 3D plot options checkboxes
+//! *** Z axis ***
+//!
+//! @returns: nothing
+//!************************************************************************
+void SpectralViewer::updatePlot3dOptionsCheckBoxesZ()
+{
+    mPlot3dOptionsUi->ZaxisTransientCheckBox->setChecked( mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_TRANSIENT ) );
+    mPlot3dOptionsUi->ZaxisFftCheckBox->setChecked( mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_FFT ) );
+    mPlot3dOptionsUi->ZaxisPeriodogramCheckBox->setChecked( mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_PERIODOGRAM ) );
+    mPlot3dOptionsUi->ZaxisSrsCheckBox->setChecked( mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_SRS ) );
+    mPlot3dOptionsUi->ZaxisCepstrumCheckBox->setChecked( mPlot3dOptions.zAxis.at( Plot3d::PLOT_3D_TYPE_CEPSTRUM ) );
+}
+
+
+//!************************************************************************
+//! Update parameters concerning all 2D and 3D plots
 //! - FFT SPS [Hz]
 //! - FFT size
 //!
@@ -2604,91 +4181,172 @@ void SpectralViewer::updatePlotsFrequencyParams()
     //////////////////////////
     /// X axis
     //////////////////////////
-    if( mPlotXtransient )
+    // 2D
+    if( mPlot2dXtransient )
     {
-        mPlotXtransient->setParameters( sps, fftSize );
+        mPlot2dXtransient->setParameters( sps, fftSize );
     }
 
-    if( mPlotXfft )
+    if( mPlot2dXfft )
     {
-        mPlotXfft->setParameters( sps, fftSize );
+        mPlot2dXfft->setParameters( sps, fftSize );
     }
 
-    if( mPlotXperiodogram )
+    if( mPlot2dXperiodogram )
     {
-        mPlotXperiodogram->setParameters( sps, fftSize );
+        mPlot2dXperiodogram->setParameters( sps, fftSize );
     }
 
-    if( mPlotXsrs )
+    if( mPlot2dXsrs )
     {
-        mPlotXsrs->setParameters( sps, fftSize );
+        mPlot2dXsrs->setParameters( sps, fftSize );
     }
 
-    if( mPlotXcepstrum )
+    if( mPlot2dXcepstrum )
     {
-        mPlotXcepstrum->setParameters( sps, fftSize );
+        mPlot2dXcepstrum->setParameters( sps, fftSize );
+    }
+
+    // 3D
+    if( mPlot3dXtransient )
+    {
+        mPlot3dXtransient->setParameters( sps, fftSize );
+    }
+
+    if( mPlot3dXfft )
+    {
+        mPlot3dXfft->setParameters( sps, fftSize );
+    }
+
+    if( mPlot3dXperiodogram )
+    {
+        mPlot3dXperiodogram->setParameters( sps, fftSize );
+    }
+
+    if( mPlot3dXsrs )
+    {
+        mPlot3dXsrs->setParameters( sps, fftSize );
+    }
+
+    if( mPlot3dXcepstrum )
+    {
+        mPlot3dXcepstrum->setParameters( sps, fftSize );
     }
 
     //////////////////////////
     /// Y axis
     //////////////////////////
-    if( mPlotYtransient )
+    // 2D
+    if( mPlot2dYtransient )
     {
-        mPlotYtransient->setParameters( sps, fftSize );
+        mPlot2dYtransient->setParameters( sps, fftSize );
     }
 
-    if( mPlotYfft )
+    if( mPlot2dYfft )
     {
-        mPlotYfft->setParameters( sps, fftSize );
+        mPlot2dYfft->setParameters( sps, fftSize );
     }
 
-    if( mPlotYperiodogram )
+    if( mPlot2dYperiodogram )
     {
-        mPlotYperiodogram->setParameters( sps, fftSize );
+        mPlot2dYperiodogram->setParameters( sps, fftSize );
     }
 
-    if( mPlotYsrs )
+    if( mPlot2dYsrs )
     {
-        mPlotYsrs->setParameters( sps, fftSize );
+        mPlot2dYsrs->setParameters( sps, fftSize );
     }
 
-    if( mPlotYcepstrum )
+    if( mPlot2dYcepstrum )
     {
-        mPlotYcepstrum->setParameters( sps, fftSize );
+        mPlot2dYcepstrum->setParameters( sps, fftSize );
+    }
+
+    // 3D
+    if( mPlot3dYtransient )
+    {
+        mPlot3dYtransient->setParameters( sps, fftSize );
+    }
+
+    if( mPlot3dYfft )
+    {
+        mPlot3dYfft->setParameters( sps, fftSize );
+    }
+
+    if( mPlot3dYperiodogram )
+    {
+        mPlot3dYperiodogram->setParameters( sps, fftSize );
+    }
+
+    if( mPlot3dYsrs )
+    {
+        mPlot3dYsrs->setParameters( sps, fftSize );
+    }
+
+    if( mPlot3dYcepstrum )
+    {
+        mPlot3dYcepstrum->setParameters( sps, fftSize );
     }
 
     //////////////////////////
     /// Z axis
     //////////////////////////
-    if( mPlotZtransient )
+    // 2D
+    if( mPlot2dZtransient )
     {
-        mPlotZtransient->setParameters( sps, fftSize );
+        mPlot2dZtransient->setParameters( sps, fftSize );
     }
 
-    if( mPlotZfft )
+    if( mPlot2dZfft )
     {
-        mPlotZfft->setParameters( sps, fftSize );
+        mPlot2dZfft->setParameters( sps, fftSize );
     }
 
-    if( mPlotZperiodogram )
+    if( mPlot2dZperiodogram )
     {
-        mPlotZperiodogram->setParameters( sps, fftSize );
+        mPlot2dZperiodogram->setParameters( sps, fftSize );
     }
 
-    if( mPlotZsrs )
+    if( mPlot2dZsrs )
     {
-        mPlotZsrs->setParameters( sps, fftSize );
+        mPlot2dZsrs->setParameters( sps, fftSize );
     }
 
-    if( mPlotZcepstrum )
+    if( mPlot2dZcepstrum )
     {
-        mPlotZcepstrum->setParameters( sps, fftSize );
+        mPlot2dZcepstrum->setParameters( sps, fftSize );
+    }
+
+    // 3D
+    if( mPlot3dZtransient )
+    {
+        mPlot3dZtransient->setParameters( sps, fftSize );
+    }
+
+    if( mPlot3dZfft )
+    {
+        mPlot3dZfft->setParameters( sps, fftSize );
+    }
+
+    if( mPlot3dZperiodogram )
+    {
+        mPlot3dZperiodogram->setParameters( sps, fftSize );
+    }
+
+    if( mPlot3dZsrs )
+    {
+        mPlot3dZsrs->setParameters( sps, fftSize );
+    }
+
+    if( mPlot3dZcepstrum )
+    {
+        mPlot3dZcepstrum->setParameters( sps, fftSize );
     }
 }
 
 
 //!************************************************************************
-//! Update the max vertical limit in transient Plot objects
+//! Update the max vertical limit in transient 2D and 3D Plot objects
 //!
 //! @returns: nothing
 //!************************************************************************
@@ -2739,24 +4397,39 @@ void SpectralViewer::updatePlotsVerticalMaxTransient()
     //////////////////////////
     /// X axis
     //////////////////////////
-    if( mPlotXtransient )
+    if( mPlot2dXtransient )
     {
-        mPlotXtransient->setVerticalMaxTransient( verticalMax );
+        mPlot2dXtransient->setVerticalMaxTransient( verticalMax );
+    }
+
+    if( mPlot3dXtransient )
+    {
+        mPlot3dXtransient->setVerticalMaxTransient( verticalMax );
     }
 
     //////////////////////////
     /// Y axis
     //////////////////////////
-    if( mPlotYtransient )
+    if( mPlot2dYtransient )
     {
-        mPlotYtransient->setVerticalMaxTransient( verticalMax );
+        mPlot2dYtransient->setVerticalMaxTransient( verticalMax );
+    }
+
+    if( mPlot3dYtransient )
+    {
+        mPlot3dYtransient->setVerticalMaxTransient( verticalMax );
     }
 
     //////////////////////////
     /// Z axis
     //////////////////////////
-    if( mPlotZtransient )
+    if( mPlot2dZtransient )
     {
-        mPlotZtransient->setVerticalMaxTransient( verticalMax );
+        mPlot2dZtransient->setVerticalMaxTransient( verticalMax );
+    }
+
+    if( mPlot3dZtransient )
+    {
+        mPlot3dZtransient->setVerticalMaxTransient( verticalMax );
     }
 }

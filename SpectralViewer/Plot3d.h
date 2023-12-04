@@ -16,16 +16,16 @@
 ///////////////////////////////////////////////////////////////////////////////////
 
 /*
-Plot.h
+Plot3d.h
 
-This file contains the definitions for plotting waveforms.
+This file contains the definitions for plotting 3D waveforms.
 */
 
-#ifndef Plot_h
-#define Plot_h
+#ifndef Plot3d_h
+#define Plot3d_h
 
 #include "Adxl355Adxl357Common.h"
-#include "PlotCanvas.h"
+#include "Plot3dCanvas.h"
 
 #include <cstdint>
 #include <map>
@@ -37,15 +37,15 @@ This file contains the definitions for plotting waveforms.
 QT_BEGIN_NAMESPACE
     namespace Ui
     {
-        class Plot;
+        class Plot3d;
     }
 QT_END_NAMESPACE
 
 
 //************************************************************************
-// Class for plotting waveforms
+// Class for plotting 3D waveforms
 //************************************************************************
-class Plot : public QMainWindow
+class Plot3d : public QMainWindow
 {
     Q_OBJECT
 
@@ -55,15 +55,15 @@ class Plot : public QMainWindow
     public:
         typedef enum : uint8_t
         {
-            PLOT_TYPE_TRANSIENT,
-            PLOT_TYPE_FFT,
-            PLOT_TYPE_PERIODOGRAM,
-            PLOT_TYPE_SRS,
-            PLOT_TYPE_CEPSTRUM,
+            PLOT_3D_TYPE_TRANSIENT,
+            PLOT_3D_TYPE_FFT,
+            PLOT_3D_TYPE_PERIODOGRAM,
+            PLOT_3D_TYPE_SRS,
+            PLOT_3D_TYPE_CEPSTRUM,
 
             // keep this last
-            PLOT_TYPE_COUNT
-        }PlotType;
+            PLOT_3D_TYPE_COUNT
+        }Plot3dType;
 
         typedef enum : uint8_t
         {
@@ -72,34 +72,27 @@ class Plot : public QMainWindow
             AXIS_TYPE_DB
         }AxisType;
 
-        typedef enum : uint8_t
-        {
-            GRID_LINES_3,
-            GRID_LINES_4,
-            GRID_LINES_5
-        }GridLines;
-
     private:
-        static const std::map<PlotType, QString> PLOT_TYPE_NAMES;
+        static const std::map<Plot3dType, QString> PLOT_3D_TYPE_NAMES;
 
         static const std::map<AxisType, QString> AXIS_TYPE_NAMES;
-        static const std::map<GridLines, QString> GRID_LINES_NAMES;
 
         const QString MENU_ITEM_MARK = QString::fromUtf8( "\u25CF" );
         const QString MENU_ITEM_SPACE = "   ";
+
 
     //************************************************************************
     // functions
     //************************************************************************
     public:
-        Plot
+        Plot3d
             (
-            QWidget*                    aParent = nullptr,                      //!< parent widget            
-            PlotType                    aType = PLOT_TYPE_TRANSIENT,            //!< plot type
+            QWidget*                    aParent = nullptr,                      //!< parent widget
+            Plot3dType                  aType = PLOT_3D_TYPE_TRANSIENT,         //!< plot 3D type
             Adxl355Adxl357Common::Axis  aAxis = Adxl355Adxl357Common::AXIS_X    //!< accelerometer axis
             );
 
-        ~Plot();
+        ~Plot3d();
 
         Adxl355Adxl357Common::Axis getAxis() const;
 
@@ -107,7 +100,7 @@ class Plot : public QMainWindow
 
         AxisType getAxisTypeVert() const;
 
-        PlotType getPlotType() const;
+        Plot3dType getPlot3dType() const;
 
         void setParameters
             (
@@ -149,6 +142,11 @@ class Plot : public QMainWindow
             QCloseEvent* aEvent                 //!< close event
             );
 
+        void keyPressEvent
+            (
+            QKeyEvent*  aEvent                  //!< key event
+            ) override;
+
     private:
         QString formatTitle();
 
@@ -160,17 +158,9 @@ class Plot : public QMainWindow
         void handleHorizAxisLinear();
         void handleHorizAxisLog();
 
-        void handleHorizGridLines3();
-        void handleHorizGridLines4();
-        void handleHorizGridLines5();
-
         void handleVertAxisLinear();
         void handleVertAxisLog();
         void handleVertAxisDb();
-
-        void handleVertGridLines3();
-        void handleVertGridLines4();
-        void handleVertGridLines5();        
 
     signals:
         void closeSignal
@@ -184,15 +174,15 @@ class Plot : public QMainWindow
     // variables
     //************************************************************************
     private:
-        Ui::Plot*                   mPlotUi;        //!< plot UI
+        Ui::Plot3d*                 mPlot3dUi;      //!< plot 3D UI
 
-        PlotType                    mType;          //!< plot type
+        Plot3dType                  mType;          //!< plot 3D type
         Adxl355Adxl357Common::Axis  mAxis;          //!< axis
 
-        PlotCanvas                  mPlotCanvas;    //!< canvas to draw on
+        Plot3dCanvas                mPlot3dCanvas;  //!< canvas to draw on
 
         AxisType                    mHorizAxisType; //!< linear or log
         AxisType                    mVertAxisType;  //!< linear or log
 };
 
-#endif // Plot_h
+#endif // Plot3d_h

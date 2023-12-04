@@ -75,20 +75,20 @@ Spectral Viewer</string>
     <set>Qt::AlignCenter</set>
    </property>
   </widget>
-  <widget class="QLabel" name="LinuxLogo">
+  <widget class="QLabel" name="AppLogo">
    <property name="geometry">
     <rect>
-     <x>170</x>
-     <y>130</y>
-     <width>51</width>
-     <height>61</height>
+     <x>130</x>
+     <y>110</y>
+     <width>141</width>
+     <height>81</height>
     </rect>
    </property>
    <property name="text">
     <string/>
    </property>
    <property name="pixmap">
-    <pixmap resource="SpectralViewer.qrc">:/Res/Linux.png</pixmap>
+    <pixmap resource="SpectralViewer.qrc">:/Res/SpectralViewer.png</pixmap>
    </property>
    <property name="scaledContents">
     <bool>true</bool>

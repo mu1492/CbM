@@ -1,6 +1,6 @@
 <RCC>
     <qresource prefix="/">
-        <file>Res/Linux.png</file>
         <file>Res/adxl35x_xyz.png</file>
+        <file>Res/SpectralViewer.png</file>
     </qresource>
 </RCC>

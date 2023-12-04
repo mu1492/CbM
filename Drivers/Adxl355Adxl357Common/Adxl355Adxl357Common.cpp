@@ -1011,6 +1011,27 @@ double Adxl355Adxl357Common::getOdrFrequency() const
 
 
 //!************************************************************************
+//! Get the ODR frequency [Hz] for a specified setting
+//!
+//! @returns The ODR frequency
+//!************************************************************************
+double Adxl355Adxl357Common::getOdrFrequency
+    (
+    const OdrSetting aOdrSetting        //!< ODR setting
+    ) const
+{
+    double freqHz = 0;
+
+    if( aOdrSetting < ODR_SETTINGS_COUNT )
+    {
+        freqHz =  mOdrList[aOdrSetting].freq;
+    }
+
+    return freqHz;
+}
+
+
+//!************************************************************************
 //! Get the ODR HPF -3dB corner frequency [Hz]
 //!
 //! @returns The HPF -3dB frequency
@@ -1741,6 +1762,7 @@ bool Adxl355Adxl357Common::reset()
     mOdrSetting = ODR_SETTING_4000;
     mHpfSetting = HPF_SETTING_DC;
     mFifoSamplesCount = FIFO_MAX_COUNT;
+    memset( &mOffsetG, 0, sizeof( mOffsetG ) );
 
     enableStandbyMode( mStandbyMode );
     enableSelfTestMode( mSelfTestMode );

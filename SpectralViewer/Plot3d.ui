@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Plot3d</class>
+ <widget class="QMainWindow" name="Plot3d">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>258</width>
+    <height>250</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Plot 3D</string>
+  </property>
+  <widget class="QWidget" name="centralwidget"/>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>258</width>
+     <height>22</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuSettings">
+    <property name="title">
+     <string>&amp;Settings</string>
+    </property>
+    <widget class="QMenu" name="menuHorizontalAxis">
+     <property name="title">
+      <string>&amp;Horizontal axis</string>
+     </property>
+     <addaction name="actionHorizLinear"/>
+     <addaction name="actionHorizLog"/>
+    </widget>
+    <widget class="QMenu" name="menuVerticalAxis">
+     <property name="title">
+      <string>&amp;Vertical axis</string>
+     </property>
+     <addaction name="actionVertLinear"/>
+     <addaction name="actionVertLog"/>
+     <addaction name="actionVertDb"/>
+    </widget>
+    <addaction name="menuHorizontalAxis"/>
+    <addaction name="menuVerticalAxis"/>
+   </widget>
+   <addaction name="menuSettings"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionExit">
+   <property name="text">
+    <string>Exit</string>
+   </property>
+  </action>
+  <action name="actionHorizLinear">
+   <property name="text">
+    <string>Li&amp;near</string>
+   </property>
+  </action>
+  <action name="actionHorizLog">
+   <property name="text">
+    <string>L&amp;og</string>
+   </property>
+  </action>
+  <action name="actionHorizGridLines3">
+   <property name="text">
+    <string>&amp;3 grid lines</string>
+   </property>
+  </action>
+  <action name="actionHorizGridLines4">
+   <property name="text">
+    <string>&amp;4 grid lines</string>
+   </property>
+  </action>
+  <action name="actionHorizGridLines5">
+   <property name="text">
+    <string>&amp;5 grid lines</string>
+   </property>
+  </action>
+  <action name="actionVertGridLines3">
+   <property name="text">
+    <string>&amp;3 grid lines</string>
+   </property>
+  </action>
+  <action name="actionVertGridLines4">
+   <property name="text">
+    <string>&amp;4 grid lines</string>
+   </property>
+  </action>
+  <action name="actionVertGridLines5">
+   <property name="text">
+    <string>&amp;5 grid lines</string>
+   </property>
+  </action>
+  <action name="actionVertLinear">
+   <property name="text">
+    <string>Li&amp;near</string>
+   </property>
+  </action>
+  <action name="actionVertLog">
+   <property name="text">
+    <string>L&amp;og</string>
+   </property>
+  </action>
+  <action name="actionVertDb">
+   <property name="text">
+    <string>d&amp;B</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

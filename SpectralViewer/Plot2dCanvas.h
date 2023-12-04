@@ -16,13 +16,13 @@
 ///////////////////////////////////////////////////////////////////////////////////
 
 /*
-PlotCanvas.h
+Plot2dCanvas.h
 
-This file contains the definitions for drawing plots.
+This file contains the definitions for drawing 2D plots.
 */
 
-#ifndef PlotCanvas_h
-#define PlotCanvas_h
+#ifndef Plot2dCanvas_h
+#define Plot2dCanvas_h
 
 #include "VibrationHandler.h"
 
@@ -34,13 +34,13 @@ This file contains the definitions for drawing plots.
 #include <QString>
 #include <QWidget>
 
-class Plot;
+class Plot2d;
 
 
 //************************************************************************
-// Class for drawing plots
+// Class for drawing 2D plots
 //************************************************************************
-class PlotCanvas : public QWidget
+class Plot2dCanvas : public QWidget
 {
     Q_OBJECT
 
@@ -72,10 +72,10 @@ class PlotCanvas : public QWidget
     // functions
     //************************************************************************
     public:
-        PlotCanvas
+        Plot2dCanvas
             (
-            QWidget* aParent,       //!< parent widget
-            Plot&    aParentPlot    //!< parent Plot object
+            QWidget* aParent,           //!< parent widget
+            Plot2d&  aParentPlot2d      //!< parent Plot2d object
             );
 
         QSize minimumSizeHint() const override;
@@ -149,11 +149,11 @@ class PlotCanvas : public QWidget
 
         void drawOuterRectangle();
 
-        void drawPlotTransient();
-        void drawPlotFft();
-        void drawPlotPeriodogram();
-        void drawPlotSrs();
-        void drawPlotCepstrum();
+        void drawPlot2dTransient();
+        void drawPlot2dFft();
+        void drawPlot2dPeriodogram();
+        void drawPlot2dSrs();
+        void drawPlot2dCepstrum();
 
         void drawValuesAbscissa();
         void drawValuesOrdinate();
@@ -175,7 +175,7 @@ class PlotCanvas : public QWidget
     // variables
     //************************************************************************
     private:
-        Plot&               mParentPlot;            //!< parent Plot object
+        Plot2d&             mParentPlot2d;          //!< parent Plot2d object
 
         int                 mSizeW;                 //!< horiziontal size of the drawing area
         int                 mSizeH;                 //!< vertical size of the drawing area
@@ -204,4 +204,4 @@ class PlotCanvas : public QWidget
         bool                mHaveVertValues;        //!< true if have vertical axis values
 };
 
-#endif // PlotCanvas_h
+#endif // Plot2dCanvas_h

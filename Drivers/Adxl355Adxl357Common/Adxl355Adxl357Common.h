@@ -393,6 +393,11 @@ class Adxl355Adxl357Common
 
         double getOdrFrequency() const;
 
+        double getOdrFrequency
+            (
+            const OdrSetting aOdrSetting        //!< ODR setting
+            ) const;
+
         double getOdrHpfCorner() const;
 
         double getOdrLpfCorner() const;

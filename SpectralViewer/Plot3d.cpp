@@ -16,64 +16,55 @@
 ///////////////////////////////////////////////////////////////////////////////////
 
 /*
-Plot.cpp
+Plot3d.cpp
 
-This file contains the sources for plotting waveforms.
+This file contains the sources for plotting 3D waveforms.
 */
 
-#include "Plot.h"
-#include "./ui_Plot.h"
+#include "Plot3d.h"
+#include "./ui_Plot3d.h"
 
-#include "PlotCanvas.h"
+#include "Plot3dCanvas.h"
 #include "SpectralViewer.h"
 
-#include <QPalette>
 
-
-const std::map<Plot::PlotType, QString> Plot::PLOT_TYPE_NAMES =
+const std::map<Plot3d::Plot3dType, QString> Plot3d::PLOT_3D_TYPE_NAMES =
 {
-    { Plot::PLOT_TYPE_TRANSIENT,   "Transient"   },
-    { Plot::PLOT_TYPE_FFT,         "FFT"         },
-    { Plot::PLOT_TYPE_PERIODOGRAM, "Periodogram" },
-    { Plot::PLOT_TYPE_SRS,         "SRS"         },
-    { Plot::PLOT_TYPE_CEPSTRUM,    "Cepstrum"    }
+    { Plot3d::PLOT_3D_TYPE_TRANSIENT,   "Transient"   },
+    { Plot3d::PLOT_3D_TYPE_FFT,         "FFT"         },
+    { Plot3d::PLOT_3D_TYPE_PERIODOGRAM, "Periodogram" },
+    { Plot3d::PLOT_3D_TYPE_SRS,         "SRS"         },
+    { Plot3d::PLOT_3D_TYPE_CEPSTRUM,    "Cepstrum"    }
 };
 
-const std::map<Plot::AxisType, QString> Plot::AXIS_TYPE_NAMES =
+const std::map<Plot3d::AxisType, QString> Plot3d::AXIS_TYPE_NAMES =
 {
-    { Plot::AXIS_TYPE_LINEAR, "Li&near" },
-    { Plot::AXIS_TYPE_LOG,    "L&og"    },
-    { Plot::AXIS_TYPE_DB,     "d&B"     }
-};
-
-const std::map<Plot::GridLines, QString> Plot::GRID_LINES_NAMES =
-{
-    { Plot::GRID_LINES_3, "&3 grid lines" },
-    { Plot::GRID_LINES_4, "&4 grid lines" },
-    { Plot::GRID_LINES_5, "&5 grid lines" }
+    { Plot3d::AXIS_TYPE_LINEAR, "Li&near" },
+    { Plot3d::AXIS_TYPE_LOG,    "L&og"    },
+    { Plot3d::AXIS_TYPE_DB,     "d&B"     }
 };
 
 //!************************************************************************
 //! Constructor
 //!************************************************************************
-Plot::Plot
+Plot3d::Plot3d
     (
     QWidget*                    aParent,    //!< parent widget
-    PlotType                    aType,      //!< plot type
+    Plot3dType                  aType,      //!< plot 3D type
     Adxl355Adxl357Common::Axis  aAxis       //!< accelerometer axis
     )
     : QMainWindow( aParent )
     , mType( aType )
-    , mAxis( aAxis )    
+    , mAxis( aAxis )
     // UI
-    , mPlotUi( new Ui::Plot )
+    , mPlot3dUi( new Ui::Plot3d )
     // paint&draw
-    , mPlotCanvas( this, *this )
+    , mPlot3dCanvas( this, *this )
     // axes
     , mHorizAxisType( AXIS_TYPE_LINEAR )
     , mVertAxisType( AXIS_TYPE_LINEAR )
 {
-    mPlotUi->setupUi( this );
+    mPlot3dUi->setupUi( this );
 
     this->setWindowTitle( formatTitle() );
 
@@ -82,70 +73,62 @@ Plot::Plot
     //****************************************
     switch( mType )
     {
-        case PLOT_TYPE_TRANSIENT:
-            mPlotUi->actionHorizLog->setEnabled( false );
+        case PLOT_3D_TYPE_TRANSIENT:
+            mPlot3dUi->actionHorizLog->setEnabled( false );
 
-            mPlotUi->actionVertLog->setEnabled( false );
-            mPlotUi->actionVertDb->setEnabled( false );
+            mPlot3dUi->actionVertLog->setEnabled( false );
+            mPlot3dUi->actionVertDb->setEnabled( false );
             break;
 
-        case PLOT_TYPE_FFT:
-            mPlotUi->actionHorizLog->setEnabled( false );
+        case PLOT_3D_TYPE_FFT:
+            mPlot3dUi->actionHorizLog->setEnabled( false );
 
             mVertAxisType = AXIS_TYPE_DB;
-            mPlotUi->actionVertLog->setEnabled( false );
+            mPlot3dUi->actionVertLog->setEnabled( false );
             break;
 
-        case PLOT_TYPE_PERIODOGRAM:
-            mPlotUi->actionHorizLog->setEnabled( false );
+        case PLOT_3D_TYPE_PERIODOGRAM:
+            mPlot3dUi->actionHorizLog->setEnabled( false );
 
             mVertAxisType = AXIS_TYPE_DB;
-            mPlotUi->actionVertLog->setEnabled( false );
+            mPlot3dUi->actionVertLog->setEnabled( false );
             break;
 
-        case PLOT_TYPE_SRS:
+        case PLOT_3D_TYPE_SRS:
             mHorizAxisType = AXIS_TYPE_LOG;
-            mPlotUi->menuHorizontalAxis->setEnabled( false );
+            mPlot3dUi->menuHorizontalAxis->setEnabled( false );
 
             mVertAxisType = AXIS_TYPE_LOG;
-            mPlotUi->menuVerticalAxis->setEnabled( false );
+            mPlot3dUi->menuVerticalAxis->setEnabled( false );
             break;
 
-        case PLOT_TYPE_CEPSTRUM:
-            mPlotUi->actionHorizLog->setEnabled( false );
+        case PLOT_3D_TYPE_CEPSTRUM:
+            mPlot3dUi->actionHorizLog->setEnabled( false );
 
             mVertAxisType = AXIS_TYPE_DB;
-            mPlotUi->actionVertLinear->setEnabled( false );
-            mPlotUi->actionVertLog->setEnabled( false );
+            mPlot3dUi->actionVertLinear->setEnabled( false );
+            mPlot3dUi->actionVertLog->setEnabled( false );
             break;
 
         default:
             break;
     }
 
-    connect( mPlotUi->actionHorizLinear, &QAction::triggered, this, &Plot::handleHorizAxisLinear );
-    connect( mPlotUi->actionHorizLog, &QAction::triggered, this, &Plot::handleHorizAxisLog );
+    connect( mPlot3dUi->actionHorizLinear, &QAction::triggered, this, &Plot3d::handleHorizAxisLinear );
+    connect( mPlot3dUi->actionHorizLog, &QAction::triggered, this, &Plot3d::handleHorizAxisLog );
 
-    connect( mPlotUi->actionHorizGridLines3, &QAction::triggered, this, &Plot::handleHorizGridLines3 );
-    connect( mPlotUi->actionHorizGridLines4, &QAction::triggered, this, &Plot::handleHorizGridLines4 );
-    connect( mPlotUi->actionHorizGridLines5, &QAction::triggered, this, &Plot::handleHorizGridLines5 );
-
-    connect( mPlotUi->actionVertLinear, &QAction::triggered, this, &Plot::handleVertAxisLinear );
-    connect( mPlotUi->actionVertLog, &QAction::triggered, this, &Plot::handleVertAxisLog );
-    connect( mPlotUi->actionVertDb, &QAction::triggered, this, &Plot::handleVertAxisDb );
-
-    connect( mPlotUi->actionVertGridLines3, &QAction::triggered, this, &Plot::handleVertGridLines3 );
-    connect( mPlotUi->actionVertGridLines4, &QAction::triggered, this, &Plot::handleVertGridLines4 );
-    connect( mPlotUi->actionVertGridLines5, &QAction::triggered, this, &Plot::handleVertGridLines5 );
+    connect( mPlot3dUi->actionVertLinear, &QAction::triggered, this, &Plot3d::handleVertAxisLinear );
+    connect( mPlot3dUi->actionVertLog, &QAction::triggered, this, &Plot3d::handleVertAxisLog );
+    connect( mPlot3dUi->actionVertDb, &QAction::triggered, this, &Plot3d::handleVertAxisDb );
 
 
     //****************************************
     // paint&draw
     //****************************************
-    setCentralWidget( &mPlotCanvas );
+    setCentralWidget( &mPlot3dCanvas );
     this->adjustSize();
 
-    mPlotCanvas.update();
+    mPlot3dCanvas.update();
 
     updateMenuHoriz();
     updateMenuVert();
@@ -155,9 +138,9 @@ Plot::Plot
 //!************************************************************************
 //! Destructor
 //!************************************************************************
-Plot::~Plot()
+Plot3d::~Plot3d()
 {
-    delete mPlotUi;
+    delete mPlot3dUi;
 }
 
 
@@ -166,7 +149,7 @@ Plot::~Plot()
 //!
 //! @returns nothing
 //!************************************************************************
-void Plot::closeEvent
+void Plot3d::closeEvent
     (
     QCloseEvent*    aEvent      //!< close event
     )
@@ -177,16 +160,16 @@ void Plot::closeEvent
 
 
 //!************************************************************************
-//! Close event handler
+//! Format the title string
 //!
-//! @returns nothing
+//! @returns Title string
 //!************************************************************************
-QString Plot::formatTitle()
+QString Plot3d::formatTitle()
 {
     QString titleStr = SpectralViewer::APP_NAME + " - ";
     titleStr += QChar( 'X' + mAxis - Adxl355Adxl357Common::AXIS_X );
     titleStr += " axis - ";
-    titleStr += PLOT_TYPE_NAMES.at( mType );
+    titleStr += PLOT_3D_TYPE_NAMES.at( mType );
 
     return titleStr;
 }
@@ -197,7 +180,7 @@ QString Plot::formatTitle()
 //!
 //! @returns The axis
 //!************************************************************************
-Adxl355Adxl357Common::Axis Plot::getAxis() const
+Adxl355Adxl357Common::Axis Plot3d::getAxis() const
 {
     return mAxis;
 }
@@ -208,7 +191,7 @@ Adxl355Adxl357Common::Axis Plot::getAxis() const
 //!
 //! @returns The horizontal axis type
 //!************************************************************************
-Plot::AxisType Plot::getAxisTypeHoriz() const
+Plot3d::AxisType Plot3d::getAxisTypeHoriz() const
 {
     return mHorizAxisType;
 }
@@ -219,18 +202,18 @@ Plot::AxisType Plot::getAxisTypeHoriz() const
 //!
 //! @returns The vertical axis type
 //!************************************************************************
-Plot::AxisType Plot::getAxisTypeVert() const
+Plot3d::AxisType Plot3d::getAxisTypeVert() const
 {
     return mVertAxisType;
 }
 
 
 //!************************************************************************
-//! Get the plot type
+//! Get the 3D plot type
 //!
 //! @returns The plot type
 //!************************************************************************
-Plot::PlotType Plot::getPlotType() const
+Plot3d::Plot3dType Plot3d::getPlot3dType() const
 {
     return mType;
 }
@@ -241,11 +224,11 @@ Plot::PlotType Plot::getPlotType() const
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void Plot::handleHorizAxisLinear()
+/* slot */ void Plot3d::handleHorizAxisLinear()
 {
     mHorizAxisType = AXIS_TYPE_LINEAR;
     updateMenuHoriz();
-    mPlotCanvas.update();
+    mPlot3dCanvas.update();
 }
 
 
@@ -254,50 +237,11 @@ Plot::PlotType Plot::getPlotType() const
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void Plot::handleHorizAxisLog()
+/* slot */ void Plot3d::handleHorizAxisLog()
 {
     mHorizAxisType = AXIS_TYPE_LOG;
     updateMenuHoriz();
-    mPlotCanvas.update();
-}
-
-
-//!************************************************************************
-//! Handle for setting 3 grid lines on the horizontal axis
-//!
-//! @returns nothing
-//!************************************************************************
-/* slot */ void Plot::handleHorizGridLines3()
-{
-    mPlotCanvas.setGridLinesHorizAxis( 3 );
-    updateMenuHoriz();
-    mPlotCanvas.update();
-}
-
-
-//!************************************************************************
-//! Handle for setting 4 grid lines on the horizontal axis
-//!
-//! @returns nothing
-//!************************************************************************
-/* slot */ void Plot::handleHorizGridLines4()
-{
-    mPlotCanvas.setGridLinesHorizAxis( 4 );
-    updateMenuHoriz();
-    mPlotCanvas.update();
-}
-
-
-//!************************************************************************
-//! Handle for setting 5 grid lines on the horizontal axis
-//!
-//! @returns nothing
-//!************************************************************************
-/* slot */ void Plot::handleHorizGridLines5()
-{
-    mPlotCanvas.setGridLinesHorizAxis( 5 );
-    updateMenuHoriz();
-    mPlotCanvas.update();
+    mPlot3dCanvas.update();
 }
 
 
@@ -306,11 +250,11 @@ Plot::PlotType Plot::getPlotType() const
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void Plot::handleVertAxisLinear()
+/* slot */ void Plot3d::handleVertAxisLinear()
 {
     mVertAxisType = AXIS_TYPE_LINEAR;
     updateMenuVert();
-    mPlotCanvas.update();
+    mPlot3dCanvas.update();
 }
 
 
@@ -319,11 +263,11 @@ Plot::PlotType Plot::getPlotType() const
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void Plot::handleVertAxisLog()
+/* slot */ void Plot3d::handleVertAxisLog()
 {
     mVertAxisType = AXIS_TYPE_LOG;
     updateMenuVert();
-    mPlotCanvas.update();
+    mPlot3dCanvas.update();
 }
 
 
@@ -332,50 +276,59 @@ Plot::PlotType Plot::getPlotType() const
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void Plot::handleVertAxisDb()
+/* slot */ void Plot3d::handleVertAxisDb()
 {
     mVertAxisType = AXIS_TYPE_DB;
     updateMenuVert();
-    mPlotCanvas.update();
+    mPlot3dCanvas.update();
 }
 
 
 //!************************************************************************
-//! Handle for setting 3 grid lines on the vertical axis
+//! Key press event handler
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void Plot::handleVertGridLines3()
+void Plot3d::keyPressEvent
+    (
+    QKeyEvent* aEvent       //!< key event
+    )
 {
-    mPlotCanvas.setGridLinesVertAxis( 3 );
-    updateMenuVert();
-    mPlotCanvas.update();
-}
+    switch( aEvent->key() )
+    {
+        case Qt::Key_Escape:
+            close();
+            break;
 
+        case Qt::Key_L:
+            mPlot3dCanvas.toogleLightEnable();
+            break;
 
-//!************************************************************************
-//! Handle for setting 4 grid lines on the vertical axis
-//!
-//! @returns nothing
-//!************************************************************************
-/* slot */ void Plot::handleVertGridLines4()
-{
-    mPlotCanvas.setGridLinesVertAxis( 4 );
-    updateMenuVert();
-    mPlotCanvas.update();
-}
+        case Qt::Key_M:
+            mPlot3dCanvas.toogleMeshFill();
+            break;
 
+        case Qt::Key_R:
+            mPlot3dCanvas.resetView();
+            break;
 
-//!************************************************************************
-//! Handle for setting 5 grid lines on the vertical axis
-//!
-//! @returns nothing
-//!************************************************************************
-/* slot */ void Plot::handleVertGridLines5()
-{
-    mPlotCanvas.setGridLinesVertAxis( 5 );
-    updateMenuVert();
-    mPlotCanvas.update();
+        case Qt::Key_Up:
+            mPlot3dCanvas.updateKeyUp();
+            break;
+        case Qt::Key_Down:
+            mPlot3dCanvas.updateKeyDown();
+            break;
+        case Qt::Key_Right:
+            mPlot3dCanvas.updateKeyRight();
+            break;
+        case Qt::Key_Left:
+            mPlot3dCanvas.updateKeyLeft();
+            break;
+
+        default:
+            QWidget::keyPressEvent( aEvent );
+            break;
+    }
 }
 
 
@@ -384,14 +337,14 @@ Plot::PlotType Plot::getPlotType() const
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void Plot::receiveNewCepstrum
+/* slot */ void Plot3d::receiveNewCepstrum
     (
     int  aAxis   //!< axis
     )
 {
-    if( PLOT_TYPE_CEPSTRUM == mType && aAxis == mAxis )
+    if( PLOT_3D_TYPE_CEPSTRUM == mType && aAxis == mAxis )
     {
-        mPlotCanvas.update();
+        mPlot3dCanvas.update();
     }
 }
 
@@ -401,11 +354,11 @@ Plot::PlotType Plot::getPlotType() const
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void Plot::receiveNewData()
+/* slot */ void Plot3d::receiveNewData()
 {
-    if( PLOT_TYPE_TRANSIENT == mType )
+    if( PLOT_3D_TYPE_TRANSIENT == mType )
     {
-        mPlotCanvas.update();
+        mPlot3dCanvas.update();
     }
 }
 
@@ -415,14 +368,14 @@ Plot::PlotType Plot::getPlotType() const
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void Plot::receiveNewFft
+/* slot */ void Plot3d::receiveNewFft
     (
     int  aAxis   //!< axis
     )
 {
-    if( PLOT_TYPE_FFT == mType && aAxis == mAxis )
+    if( PLOT_3D_TYPE_FFT == mType && aAxis == mAxis )
     {
-        mPlotCanvas.update();
+        mPlot3dCanvas.update();
     }
 }
 
@@ -432,14 +385,14 @@ Plot::PlotType Plot::getPlotType() const
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void Plot::receiveNewPeriodogram
+/* slot */ void Plot3d::receiveNewPeriodogram
     (
     int  aAxis   //!< axis
     )
 {
-    if( PLOT_TYPE_PERIODOGRAM == mType && aAxis == mAxis )
+    if( PLOT_3D_TYPE_PERIODOGRAM == mType && aAxis == mAxis )
     {
-        mPlotCanvas.update();
+        mPlot3dCanvas.update();
     }
 }
 
@@ -449,14 +402,14 @@ Plot::PlotType Plot::getPlotType() const
 //!
 //! @returns nothing
 //!************************************************************************
-/* slot */ void Plot::receiveNewSrs
+/* slot */ void Plot3d::receiveNewSrs
     (
     int  aAxis   //!< axis
     )
 {
-    if( PLOT_TYPE_SRS == mType && aAxis == mAxis )
+    if( PLOT_3D_TYPE_SRS == mType && aAxis == mAxis )
     {
-        mPlotCanvas.update();
+        mPlot3dCanvas.update();
     }
 }
 
@@ -466,7 +419,7 @@ Plot::PlotType Plot::getPlotType() const
 //!
 //! @returns nothing
 //!************************************************************************
-void Plot::setParameters
+void Plot3d::setParameters
     (
     const double   aSps,        //!< sampling rate [Hz]
     const uint32_t aFftSize     //!< FFT size
@@ -474,8 +427,8 @@ void Plot::setParameters
 {
     if( aSps > 0 && aFftSize > 0 )
     {
-        mPlotCanvas.setParameters( aSps, aFftSize );
-        mPlotCanvas.update();
+        mPlot3dCanvas.setParameters( aSps, aFftSize );
+        mPlot3dCanvas.update();
     }
 }
 
@@ -485,13 +438,13 @@ void Plot::setParameters
 //!
 //! @returns nothing
 //!************************************************************************
-void Plot::setVerticalMaxTransient
+void Plot3d::setVerticalMaxTransient
     (
     const double aVerticalMax   //!< max value for vertical axis [g]
     )
 {
-    mPlotCanvas.setVerticalMaxTransient( aVerticalMax );
-    mPlotCanvas.update();
+    mPlot3dCanvas.setVerticalMaxTransient( aVerticalMax );
+    mPlot3dCanvas.update();
 }
 
 
@@ -500,21 +453,12 @@ void Plot::setVerticalMaxTransient
 //!
 //! @returns nothing
 //!************************************************************************
-void Plot::updateMenuHoriz()
+void Plot3d::updateMenuHoriz()
 {
-    mPlotUi->actionHorizLinear->setText( ( AXIS_TYPE_LINEAR == mHorizAxisType ? MENU_ITEM_MARK : MENU_ITEM_SPACE ) +
+    mPlot3dUi->actionHorizLinear->setText( ( AXIS_TYPE_LINEAR == mHorizAxisType ? MENU_ITEM_MARK : MENU_ITEM_SPACE ) +
                 " " + AXIS_TYPE_NAMES.at( AXIS_TYPE_LINEAR ) );
-    mPlotUi->actionHorizLog->setText( ( AXIS_TYPE_LOG == mHorizAxisType ? MENU_ITEM_MARK : MENU_ITEM_SPACE ) +
+    mPlot3dUi->actionHorizLog->setText( ( AXIS_TYPE_LOG == mHorizAxisType ? MENU_ITEM_MARK : MENU_ITEM_SPACE ) +
                 " " + AXIS_TYPE_NAMES.at( AXIS_TYPE_LOG ) );
-
-    int horizAxisGridLines = mPlotCanvas.getGridLinesHorizAxis();
-
-    mPlotUi->actionHorizGridLines3->setText( ( 3 == horizAxisGridLines ? MENU_ITEM_MARK : MENU_ITEM_SPACE ) +
-                " " + GRID_LINES_NAMES.at( GRID_LINES_3 ) );
-    mPlotUi->actionHorizGridLines4->setText( ( 4 == horizAxisGridLines ? MENU_ITEM_MARK : MENU_ITEM_SPACE ) +
-                " " + GRID_LINES_NAMES.at( GRID_LINES_4 ) );
-    mPlotUi->actionHorizGridLines5->setText( ( 5 == horizAxisGridLines ? MENU_ITEM_MARK : MENU_ITEM_SPACE ) +
-                " " + GRID_LINES_NAMES.at( GRID_LINES_5 ) );
 }
 
 
@@ -523,21 +467,12 @@ void Plot::updateMenuHoriz()
 //!
 //! @returns nothing
 //!************************************************************************
-void Plot::updateMenuVert()
+void Plot3d::updateMenuVert()
 {
-    mPlotUi->actionVertLinear->setText( ( AXIS_TYPE_LINEAR == mVertAxisType ? MENU_ITEM_MARK : MENU_ITEM_SPACE ) +
+    mPlot3dUi->actionVertLinear->setText( ( AXIS_TYPE_LINEAR == mVertAxisType ? MENU_ITEM_MARK : MENU_ITEM_SPACE ) +
                 " " + AXIS_TYPE_NAMES.at( AXIS_TYPE_LINEAR ) );
-    mPlotUi->actionVertLog->setText( ( AXIS_TYPE_LOG == mVertAxisType ? MENU_ITEM_MARK : MENU_ITEM_SPACE ) +
+    mPlot3dUi->actionVertLog->setText( ( AXIS_TYPE_LOG == mVertAxisType ? MENU_ITEM_MARK : MENU_ITEM_SPACE ) +
                 " " + AXIS_TYPE_NAMES.at( AXIS_TYPE_LOG ) );
-    mPlotUi->actionVertDb->setText( ( AXIS_TYPE_DB == mVertAxisType ? MENU_ITEM_MARK : MENU_ITEM_SPACE ) +
+    mPlot3dUi->actionVertDb->setText( ( AXIS_TYPE_DB == mVertAxisType ? MENU_ITEM_MARK : MENU_ITEM_SPACE ) +
                 " " + AXIS_TYPE_NAMES.at( AXIS_TYPE_DB ) );
-
-    int vertAxisGridLines = mPlotCanvas.getGridLinesVertAxis();
-
-    mPlotUi->actionVertGridLines3->setText( ( 3 == vertAxisGridLines ? MENU_ITEM_MARK : MENU_ITEM_SPACE ) +
-                " " + GRID_LINES_NAMES.at( GRID_LINES_3 ) );
-    mPlotUi->actionVertGridLines4->setText( ( 4 == vertAxisGridLines ? MENU_ITEM_MARK : MENU_ITEM_SPACE ) +
-                " " + GRID_LINES_NAMES.at( GRID_LINES_4 ) );
-    mPlotUi->actionVertGridLines5->setText( ( 5 == vertAxisGridLines ? MENU_ITEM_MARK : MENU_ITEM_SPACE ) +
-                " " + GRID_LINES_NAMES.at( GRID_LINES_5 ) );
 }

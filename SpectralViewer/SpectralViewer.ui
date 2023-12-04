@@ -41,13 +41,15 @@
     <property name="title">
      <string>&amp;File</string>
     </property>
+    <addaction name="actionOpenConfiguration"/>
     <addaction name="actionExit"/>
    </widget>
    <widget class="QMenu" name="menuPlots">
     <property name="title">
      <string>&amp;Plots</string>
     </property>
-    <addaction name="actionSelectPlots"/>
+    <addaction name="actionSelectPlots2D"/>
+    <addaction name="actionSelectPlots3D"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuSettings"/>
@@ -85,9 +87,19 @@
     <string>&amp;Plot options</string>
    </property>
   </action>
-  <action name="actionSelectPlots">
+  <action name="actionSelectPlots2D">
    <property name="text">
-    <string>&amp;Select Plots</string>
+    <string>Select &amp;2D Plots</string>
+   </property>
+  </action>
+  <action name="actionSelectPlots3D">
+   <property name="text">
+    <string>Select &amp;3D Plots</string>
+   </property>
+  </action>
+  <action name="actionOpenConfiguration">
+   <property name="text">
+    <string>&amp;Open configuration</string>
    </property>
   </action>
  </widget>

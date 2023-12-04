@@ -148,6 +148,11 @@ class VibrationHandler : public QObject
 
         static VibrationHandler* getInstance();
 
+        double convertAccelG2Ms2
+            (
+            const double aAccelerationG   //!< acceleration [g]
+            ) const;
+
         std::vector<FftBin> getFftBinsOnAxis
             (
             const Adxl355Adxl357Common::Axis aAxis      //!< axis
@@ -270,11 +275,6 @@ class VibrationHandler : public QObject
         void calculateSpectrumY();
 
         void calculateSpectrumZ();
-
-        double convertAccelG2Ms2
-            (
-            const double aAccelerationG   //!< acceleration [g]
-            ) const;
 
         void shiftLeft
             (
