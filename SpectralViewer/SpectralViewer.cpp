@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////////
-// Copyright (C) 2023 Mihai Ursu                                                 //
+// Copyright (C) 2023-2024 Mihai Ursu                                                 //
 //                                                                               //
 // This program is free software; you can redistribute it and/or modify          //
 // it under the terms of the GNU General Public License as published by          //
@@ -47,7 +47,6 @@ This file contains the sources for the mechanical vibrations spectral viewer.
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QTime>
-#include <QTimer>
 
 
 const QString SpectralViewer::APP_NAME = "Spectral Viewer";
@@ -120,7 +119,9 @@ SpectralViewer::SpectralViewer
     , mPlot3dZcepstrum( nullptr )
     // config
     , mIsConfigSetupRunning( false )
+    , mConfigBatchesTimer( new QTimer( this ) )
     // dump
+    , mDumpRemainingBatches( 0 )
     , mDumpRemainingSamples( 0 )
 {
     mMainUi->setupUi( this );    
@@ -598,17 +599,28 @@ QString SpectralViewer::convertSeconds2String
 
 
 //!************************************************************************
-//! Create a filename for CSV data, using an input filename
+//! Create a filename for CSV data, using an input filename and a counter
 //!
 //! @returns The string for the output file
 //!************************************************************************
 std::string SpectralViewer::createCsvDataFilename
     (
-    const std::string aInputFilename    //!< input filename
+    const std::string aInputFilename,   //!< input filename
+    const uint32_t    aCounter,         //!< counter
+    const uint8_t     aNumericStrLen    //!< numeric string length
     ) const
 {
     std::filesystem::path fullPath( aInputFilename );
     std::string csvFilename = fullPath.stem();
+    std::string counterStr = std::to_string( aCounter );
+
+    if( counterStr.size() < aNumericStrLen )
+    {
+        counterStr.insert( 0, aNumericStrLen - counterStr.size(), '0' );
+    }
+
+    csvFilename += "_";
+    csvFilename += counterStr;
     QDateTime crtDateTime = QDateTime::currentDateTime();
     csvFilename += crtDateTime.toString( ".yyyyMMdd_hhmmss" ).toStdString();
     csvFilename += ".csv";
@@ -1826,8 +1838,8 @@ uint16_t SpectralViewer::getDaqDelayUs()
                                                          QFileDialog::DontUseNativeDialog
                                                         );
 
-        std::string inputFilename = fileName.toStdString();
-        std::ifstream inputFile( inputFilename );
+        mConfigFilename = fileName.toStdString();
+        std::ifstream inputFile( mConfigFilename );
 
         if( inputFile.is_open() )
         {
@@ -1842,7 +1854,9 @@ uint16_t SpectralViewer::getDaqDelayUs()
                 "range",
                 "odr",
                 "nullify",
-                "samples_count"
+                "batches_count",
+                "samples_per_batch",
+                "batches_period"
             };
 
             while( std::getline( inputFile, currentLine ) )
@@ -1998,11 +2012,41 @@ uint16_t SpectralViewer::getDaqDelayUs()
 
                                 case 4:
                                     {
+                                        uint32_t batchesCount = std::stoul( substringsVec.at( 1 ) );
+
+                                        if( batchesCount >= 1 )
+                                        {
+                                            mConfig.batchesCount = batchesCount;
+                                        }
+                                        else
+                                        {
+                                            parseOk = false;
+                                        }
+                                    }
+                                    break;
+
+                                case 5:
+                                    {
                                         uint32_t samplesCount = std::stoul( substringsVec.at( 1 ) );
 
-                                        if( samplesCount )
+                                        if( samplesCount >= 1 )
                                         {
                                             mConfig.samplesCount = samplesCount;
+                                        }
+                                        else
+                                        {
+                                            parseOk = false;
+                                        }
+                                    }
+                                    break;
+
+                                case 6:
+                                    {
+                                        double batchesPeriod = std::stod( substringsVec.at( 1 ) );
+
+                                        if( batchesPeriod > 0 )
+                                        {
+                                            mConfig.batchesPeriod = batchesPeriod;
                                         }
                                         else
                                         {
@@ -2037,24 +2081,39 @@ uint16_t SpectralViewer::getDaqDelayUs()
             }
 
             inputFile.close();
+            QString msg;
+            QMessageBox msgBox;
 
             if( parseOk )
             {
-                double daqDuration = mConfig.samplesCount / mAccelInstance->getOdrFrequency( mConfig.odrSetting );
-                QString messageText = "The configuration was parsed successfully.\n";
-                messageText += "Total data acquisition duration will be ";
-                messageText += convertSeconds2String( daqDuration );
-                messageText += "\n\nDo you want to run this setup?";
+                double singleBatchDuration = static_cast<double>( mConfig.samplesCount ) / mAccelInstance->getOdrFrequency( mConfig.odrSetting );
 
-                if( QMessageBox::Yes == QMessageBox::question( this, APP_NAME, messageText, QMessageBox::Yes | QMessageBox::No ) )
+                if( singleBatchDuration < mConfig.batchesPeriod )
                 {
-                    runConfiguration( inputFilename );
+                    double totalDaqDuration = ( mConfig.batchesCount - 1 ) * mConfig.batchesPeriod + singleBatchDuration;
+                    msg = "The configuration was parsed successfully.\n";
+                    msg += "Total DAQ duration will be ";
+                    msg += convertSeconds2String( totalDaqDuration );
+                    msg += "\n\nDo you want to run this setup?";
+
+                    if( QMessageBox::Yes == QMessageBox::question( this, APP_NAME, msg, QMessageBox::Yes | QMessageBox::No ) )
+                    {
+                        runConfiguration();
+                    }
+                }
+                else
+                {
+                    msg = "The batch period is smaller than a single DAQ duration.\n";
+                    msg += "The batch period must be > ";
+                    msg += QString::number( singleBatchDuration );
+                    msg += "\n\nNo DAQ will be started.";
+                    msgBox.setText( msg );
+                    msgBox.exec();
                 }
             }
             else
             {
-                QString msg = "The selected file does not contain any valid configuration.";
-                QMessageBox msgBox;
+                msg = "The selected file does not contain any valid configuration.";
                 msgBox.setText( msg );
                 msgBox.exec();
             }
@@ -3631,6 +3690,12 @@ void SpectralViewer::readTemperature()
 
         if( 0 == mDumpRemainingSamples )
         {
+            mDumpRemainingBatches--;
+            stopBatch();
+        }
+
+        if( 0 == mDumpRemainingBatches )
+        {
             stopConfiguration();
         }
     }
@@ -3739,10 +3804,7 @@ bool SpectralViewer::resetAccel()
 //!
 //! @returns: nothing
 //!************************************************************************
-void SpectralViewer::runConfiguration
-    (
-    const std::string aInputFilename    //!< input filename
-    )
+void SpectralViewer::runConfiguration()
 {
     bool statusOk = false;
 
@@ -3795,11 +3857,25 @@ void SpectralViewer::runConfiguration
 
         if( statusOk )
         {
+            statusOk = ( mConfig.batchesCount != 0 );
+
+            if( !statusOk )
+            {
+                QMessageBox::critical( this, APP_NAME, "Could not start with zero batches.", QMessageBox::Ok );
+            }
+            else
+            {
+                mDumpRemainingBatches = mConfig.batchesCount;
+            }
+        }
+
+        if( statusOk )
+        {
             statusOk = ( mConfig.samplesCount != 0 );
 
             if( !statusOk )
             {
-                QMessageBox::critical( this, APP_NAME, "Could not start with zero samples.", QMessageBox::Ok );
+                QMessageBox::critical( this, APP_NAME, "Could not start with zero samples/batch.", QMessageBox::Ok );
             }
             else
             {
@@ -3809,21 +3885,70 @@ void SpectralViewer::runConfiguration
 
         if( statusOk )
         {
-            mMainUi->actionAccelerometer->setEnabled( false );
-            mDumpCsvFile.open( createCsvDataFilename( aInputFilename ) );
+            statusOk = ( mConfig.batchesPeriod > 0 );
 
-            if( mDumpCsvFile.is_open() )
+            if( !statusOk )
             {
-                mDumpCsvFile << "timestamp,accX,accY,accZ\n";
-
-                const uint16_t DELAY_MS = 500;
-                QTimer::singleShot( DELAY_MS, this, SLOT( triggerConfigSetupRun() ) );
-            }
-            else
-            {
-                statusOk = false;
+                QMessageBox::critical( this, APP_NAME, "Could not start with zero batch period.", QMessageBox::Ok );
             }
         }
+
+        if( statusOk )
+        {
+            mMainUi->actionAccelerometer->setEnabled( false );
+            const uint16_t DELAY_MS = 500;
+            QTimer::singleShot( DELAY_MS, this, SLOT( runBatches() ) );
+        }
+    }
+}
+
+
+//!************************************************************************
+//! Run the configuration batches for dumping data into CSV files
+//!
+//! @returns: nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::runBatches()
+{
+    connect( mConfigBatchesTimer, SIGNAL( timeout() ), this, SLOT( startBatch() ) );
+    startBatch();
+    mConfigBatchesTimer->start( 1000 * mConfig.batchesPeriod );
+}
+
+
+//!************************************************************************
+//! Start running the current batch
+//!
+//! @returns: nothing
+//!************************************************************************
+/* slot */ void SpectralViewer::startBatch()
+{
+    mDumpCsvFile.open( createCsvDataFilename( mConfigFilename,
+                                              mConfig.batchesCount - mDumpRemainingBatches,
+                                              std::to_string( mConfig.batchesCount ).length() ) );
+
+    if( mDumpCsvFile.is_open() )
+    {
+        mDumpCsvFile << "timestamp,accX,accY,accZ\n";
+    }
+
+    mIsConfigSetupRunning = true;
+}
+
+
+//!************************************************************************
+//! Update data when stopping the current batch
+//!
+//! @returns: nothing
+//!************************************************************************
+void SpectralViewer::stopBatch()
+{
+    mIsConfigSetupRunning = false;
+    mDumpRemainingSamples = mConfig.samplesCount;
+
+    if( mDumpCsvFile.is_open() )
+    {
+        mDumpCsvFile.close();
     }
 }
 
@@ -3835,9 +3960,13 @@ void SpectralViewer::runConfiguration
 //!************************************************************************
 void SpectralViewer::stopConfiguration()
 {
+    mConfigBatchesTimer->stop();
     mIsConfigSetupRunning = false;
+    mDumpRemainingBatches = 0;
     mDumpRemainingSamples = 0;
+    mConfig.batchesCount = 0;
     mConfig.samplesCount = 0;
+    mConfig.batchesPeriod = 0;
 
     mMainUi->actionAccelerometer->setEnabled( true );
 
@@ -3845,17 +3974,6 @@ void SpectralViewer::stopConfiguration()
     {
         mDumpCsvFile.close();
     }
-}
-
-
-//!************************************************************************
-//! Trigger the launch of configuration setup
-//!
-//! @returns: nothing
-//!************************************************************************
-/* slot */ void SpectralViewer::triggerConfigSetupRun()
-{
-    mIsConfigSetupRunning = true;
 }
 
 

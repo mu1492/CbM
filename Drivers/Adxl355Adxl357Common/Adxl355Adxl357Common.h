@@ -155,9 +155,9 @@ class Adxl355Adxl357Common
             RANGE_I2C_HS           = 0x80,  //!< I2C high speed mode
             RANGE_INT_POL_ACTIVE_H = 0x40,  //!< Interrupt pins active high
 
-            RANGE_HIGH = 0x03,              //!< Range is +/-8 g (ADXL355) or +/-10 g (ADXL357)
+            RANGE_HIGH = 0x03,              //!< Range is +/-8 g (ADXL355) or +/-40 g (ADXL357)
             RANGE_MID  = 0x02,              //!< Range is +/-4 g (ADXL355) or +/-20 g (ADXL357)
-            RANGE_LOW  = 0x01               //!< Range is +/-2 g (ADXL355) or +/-40 g (ADXL357)
+            RANGE_LOW  = 0x01               //!< Range is +/-2 g (ADXL355) or +/-10 g (ADXL357)
         }Range;
 
         typedef enum : uint8_t

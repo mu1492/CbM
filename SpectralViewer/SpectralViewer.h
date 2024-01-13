@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////////
-// Copyright (C) 2023 Mihai Ursu                                                 //
+// Copyright (C) 2023-2024 Mihai Ursu                                                 //
 //                                                                               //
 // This program is free software; you can redistribute it and/or modify          //
 // it under the terms of the GNU General Public License as published by          //
@@ -52,6 +52,7 @@ This file contains the definitions for the mechanical vibrations spectral viewer
 #include <QDialog>
 #include <QMainWindow>
 #include <QString>
+#include <QTimer>
 
 class CbmCanvas;
 class DaqThread;
@@ -146,7 +147,9 @@ class SpectralViewer : public QMainWindow
             Adxl355Adxl357Common::AccelerationRange range;              //!< acceleration range
             Adxl355Adxl357Common::OdrSetting        odrSetting;         //!< ODR setting
             bool                                    nullifyActive;      //!< true if nullify is applied
-            uint32_t                                samplesCount;       //!< number of samples
+            uint32_t                                batchesCount;       //!< number of batches
+            uint32_t                                samplesCount;       //!< number of samples/batch
+            double                                  batchesPeriod;      //!< period of batches [s]
         }Config;
 
 
@@ -195,7 +198,9 @@ class SpectralViewer : public QMainWindow
 
         std::string createCsvDataFilename
             (
-            const std::string aInputFilename    //!< input filename
+            const std::string aInputFilename,   //!< input filename
+            const uint32_t    aCounter,         //!< counter
+            const uint8_t     aNumericStrLen    //!< numeric string length
             ) const;
 
         uint16_t getDaqDelayUs();
@@ -216,10 +221,9 @@ class SpectralViewer : public QMainWindow
 
         bool resetAccel();
 
-        void runConfiguration
-            (
-            const std::string aInputFilename    //!< input filename
-            );
+        void runConfiguration();
+
+        void stopBatch();
 
         void stopConfiguration();
 
@@ -569,7 +573,9 @@ class SpectralViewer : public QMainWindow
             double aTemperature //!< temperature [C]
             );
 
-        void triggerConfigSetupRun();
+        void runBatches();
+
+        void startBatch();
 
         void updateDateTime();
 
@@ -697,12 +703,15 @@ class SpectralViewer : public QMainWindow
         Plot3d*                         mPlot3dZcepstrum;       //!< 3D plot window for Z axis cepstrum
 
         // config file
+        std::string                     mConfigFilename;        //!< configuration filename
         Config                          mConfig;                //!< configuration settings
         bool                            mIsConfigSetupRunning;  //!< true if a config setup is still running
+        QTimer*                         mConfigBatchesTimer;    //!< timer for running the batches
 
         // data dump
         std::ofstream                   mDumpCsvFile;           //!< csv output file
-        uint32_t                        mDumpRemainingSamples;  //!< remaining samples to dump into output file
+        uint32_t                        mDumpRemainingBatches;  //!< remaining batches to dump
+        uint32_t                        mDumpRemainingSamples;  //!< remaining samples/batch to dump into output file
 };
 
 #endif // SpectralViewer_h
