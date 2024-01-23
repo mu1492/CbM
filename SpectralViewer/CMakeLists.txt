@@ -222,6 +222,7 @@ endif()
 
 if(USE_CUDA)
     set_target_properties(SpectralViewerCuda PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+    set_target_properties(SpectralViewerCuda PROPERTIES CUDA_ARCHITECTURES "72;87")
 endif()
 
 #########################
