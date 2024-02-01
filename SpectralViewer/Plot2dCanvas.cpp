@@ -1071,70 +1071,73 @@ void Plot2dCanvas::paintEvent
     QPaintEvent*    /* aEvent */    //!< paint event
     )
 {
-    QPainter painter( this );
-
-    // use antialiasing
-    painter.setRenderHint( QPainter::Antialiasing, true );
-
-    // background
-    mPen = QPen( Qt::NoPen );
-    mBrush = QBrush( Qt::black, Qt::SolidPattern );
-    painter.setPen( mPen );
-    painter.setBrush( mBrush );
-    painter.drawRect( QRect( 0, 0, mSizeW - 1, mSizeH - 1 ) );
-    mPicture = QPicture();
-
-    // outer rectangle
-    drawOuterRectangle();
-    painter.drawPicture( 0, 0, mPicture );
-
-    // horizontal grid lines
-    drawGridLinesH();
-    painter.drawPicture( 0, 0, mPicture );
-
-    // vertical grid lines
-    drawGridLinesV();
-    painter.drawPicture( 0, 0, mPicture );
-
-    // horizontal axis values
-    drawValuesAbscissa();
-    painter.drawPicture( 0, 0, mPicture );
-
-    // vertical axis values
-    if( mHaveVertValues )
+    if( mParentPlot2d.isVisible() )
     {
-        drawValuesOrdinate();
+        QPainter painter( this );
+
+        // use antialiasing
+        painter.setRenderHint( QPainter::Antialiasing, true );
+
+        // background
+        mPen = QPen( Qt::NoPen );
+        mBrush = QBrush( Qt::black, Qt::SolidPattern );
+        painter.setPen( mPen );
+        painter.setBrush( mBrush );
+        painter.drawRect( QRect( 0, 0, mSizeW - 1, mSizeH - 1 ) );
+        mPicture = QPicture();
+
+        // outer rectangle
+        drawOuterRectangle();
+        painter.drawPicture( 0, 0, mPicture );
+
+        // horizontal grid lines
+        drawGridLinesH();
+        painter.drawPicture( 0, 0, mPicture );
+
+        // vertical grid lines
+        drawGridLinesV();
+        painter.drawPicture( 0, 0, mPicture );
+
+        // horizontal axis values
+        drawValuesAbscissa();
+        painter.drawPicture( 0, 0, mPicture );
+
+        // vertical axis values
+        if( mHaveVertValues )
+        {
+            drawValuesOrdinate();
+            painter.drawPicture( 0, 0, mPicture );
+        }
+
+        // data plots
+        switch( mParentPlot2d.getPlot2dType() )
+        {
+            case Plot2d::PLOT_2D_TYPE_TRANSIENT:
+                drawPlot2dTransient();
+                break;
+
+            case Plot2d::PLOT_2D_TYPE_FFT:
+                drawPlot2dFft();
+                break;
+
+            case Plot2d::PLOT_2D_TYPE_PERIODOGRAM:
+                drawPlot2dPeriodogram();
+                break;
+
+            case Plot2d::PLOT_2D_TYPE_SRS:
+                drawPlot2dSrs();
+                break;
+
+            case Plot2d::PLOT_2D_TYPE_CEPSTRUM:
+                drawPlot2dCepstrum();
+                break;
+
+            default:
+                break;
+        }
+
         painter.drawPicture( 0, 0, mPicture );
     }
-
-    // data plots
-    switch( mParentPlot2d.getPlot2dType() )
-    {
-        case Plot2d::PLOT_2D_TYPE_TRANSIENT:
-            drawPlot2dTransient();
-            break;
-
-        case Plot2d::PLOT_2D_TYPE_FFT:
-            drawPlot2dFft();
-            break;
-
-        case Plot2d::PLOT_2D_TYPE_PERIODOGRAM:
-            drawPlot2dPeriodogram();
-            break;
-
-        case Plot2d::PLOT_2D_TYPE_SRS:
-            drawPlot2dSrs();
-            break;
-
-        case Plot2d::PLOT_2D_TYPE_CEPSTRUM:
-            drawPlot2dCepstrum();
-            break;
-
-        default:
-            break;
-    }
-
-    painter.drawPicture( 0, 0, mPicture );
 }
 
 

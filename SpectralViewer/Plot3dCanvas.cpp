@@ -70,26 +70,27 @@ Plot3dCanvas::Plot3dCanvas
     , mLightEnabled( true )
     , mMeshList( 0 )
     , mMeshData( nullptr )
+    , mMeshDataBuf( nullptr )
     , mMeshVxs( nullptr )
     , mMeshNs( nullptr )
     , mMeshFill( true )
-    , mMeshDeltaX( 2 )
-    , mMeshDeltaY( 2 )
+    , mMeshDeltaX( 100 )
+    , mMeshDeltaY( 100 )
     // rotation
     , mRotAngleDeg( 0 )
     , mRotMouseButton( Qt::LeftButton )
     , mRotIsActive( false )
     // ranges
-    , mXmin( 0 )
-    , mXmax( 0 )
-    , mYmin( 0 )
-    , mYmax( 0 )
-    , mZmin( 0 )
-    , mZmax( 0 )
+    , mZmin( DBL_MAX )
+    , mZmax( -DBL_MAX )
+    // refresh
+    , mRefreshTimer( new QTimer( this ) )
 {
     memset( &mRotAxis, 0, sizeof( mRotAxis ) );
     memset( &mRotTransform, 0, sizeof( mRotTransform ) );
     memset( &mRotLastPosition, 0, sizeof( mRotLastPosition ) );
+
+    connect( mRefreshTimer, SIGNAL( timeout() ), this, SLOT( refresh() ) );
 }
 
 
@@ -98,6 +99,161 @@ Plot3dCanvas::Plot3dCanvas
 //!************************************************************************
 Plot3dCanvas::~Plot3dCanvas()
 {
+}
+
+
+//!************************************************************************
+//! Data cleanup - deallocate all memory
+//!
+//! @returns nothing
+//!************************************************************************
+void Plot3dCanvas::cleanupAll()
+{
+    cleanupVxsNs();
+}
+
+
+//!************************************************************************
+//! Data cleanup - deallocate data memory
+//!
+//! @returns nothing
+//!************************************************************************
+void Plot3dCanvas::cleanupData()
+{
+    if( mMeshData )
+    {
+        for( uint16_t i = 0; i < mMeshDeltaX; i++ )
+        {
+            delete[] mMeshData[i];
+        }
+
+        delete[] mMeshData;
+        mMeshData = nullptr;
+    }
+}
+
+
+//!************************************************************************
+//! Data cleanup - deallocate buffered data memory
+//!
+//! @returns nothing
+//!************************************************************************
+void Plot3dCanvas::cleanupDataBuf()
+{
+    if( mMeshDataBuf )
+    {
+        for( uint16_t i = 0; i < mMeshDeltaX; i++ )
+        {
+            delete[] mMeshDataBuf[i];
+        }
+
+        delete[] mMeshDataBuf;
+        mMeshDataBuf = nullptr;
+    }
+}
+
+
+//!************************************************************************
+//! Data cleanup - deallocate vertices and normals memory
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void Plot3dCanvas::cleanupVxsNs()
+{
+    uint16_t i = 0;
+    uint16_t j = 0;
+
+    if( mMeshVxs )
+    {
+        for( i = 0; i < mMeshDeltaX; i++ )
+        {
+            for( j = 0; j < mMeshDeltaY; j++ )
+            {
+                delete[] mMeshVxs[i][j];
+            }
+
+            delete[] mMeshVxs[i];
+        }
+
+        delete[] mMeshVxs;
+        mMeshVxs = nullptr;
+    }
+
+    if( mMeshNs )
+    {
+        for( i = 0; i < mMeshDeltaX; i++ )
+        {
+            for( j = 0; j < mMeshDeltaY; j++ )
+            {
+                delete[] mMeshNs[i][j];
+            }
+
+            delete[] mMeshNs[i];
+        }
+
+        delete[] mMeshNs;
+        mMeshNs = nullptr;
+    }
+}
+
+
+//!************************************************************************
+//! Comparison function for FftBin values
+//!
+//! @returns true if first number is smaller than second
+//!************************************************************************
+bool Plot3dCanvas::compareBinFnc
+    (
+    VibrationHandler::FftBin x,   //!< first object
+    VibrationHandler::FftBin y    //!< second object
+    )
+{
+    return x.value < y.value;
+}
+
+
+//!************************************************************************
+//! Comparison function for FftCepstrum values
+//!
+//! @returns true if first number is smaller than second
+//!************************************************************************
+bool Plot3dCanvas::compareCepstrumFnc
+    (
+    VibrationHandler::FftCepstrum x,   //!< first object
+    VibrationHandler::FftCepstrum y    //!< second object
+    )
+{
+    return x.value < y.value;
+}
+
+
+//!************************************************************************
+//! Comparison function for FftPsd values
+//!
+//! @returns true if first number is smaller than second
+//!************************************************************************
+bool Plot3dCanvas::comparePsdFnc
+    (
+    VibrationHandler::FftPsd x,   //!< first object
+    VibrationHandler::FftPsd y    //!< second object
+    )
+{
+    return x.value < y.value;
+}
+
+
+//!************************************************************************
+//! Comparison function for Srs values
+//!
+//! @returns true if first number is smaller than second
+//!************************************************************************
+bool Plot3dCanvas::compareSrsFnc
+    (
+    VibrationHandler::Srs x,   //!< first object
+    VibrationHandler::Srs y    //!< second object
+    )
+{
+    return x.value < y.value;
 }
 
 
@@ -118,48 +274,6 @@ void Plot3dCanvas::convertToScreenCoords
     {
         *aScreenX = static_cast<int>( 0.5 * mSizeW * ( 1 + aProjX ) );
         *aScreenY = static_cast<int>( 0.5 * mSizeH * ( 1 - aProjY ) );
-    }
-}
-
-
-//!************************************************************************
-//! Data cleanup - deallocate memory
-//!
-//! @returns nothing
-//!************************************************************************
-/* slot */ void Plot3dCanvas::cleanup()
-{
-    uint16_t i = 0;
-    uint16_t j = 0;
-
-    if( mMeshVxs )
-    {
-        for( i = 0; i < mMeshDeltaX; i++ )
-        {
-            for( j = 0; j < mMeshDeltaY; j++ )
-            {
-                delete[] mMeshVxs[i][j];
-            }
-
-            delete[] mMeshVxs[i];
-        }
-
-        delete[] mMeshVxs;
-    }
-
-    if( mMeshNs )
-    {
-        for( i = 0; i < mMeshDeltaX; i++ )
-        {
-            for( j = 0; j < mMeshDeltaY; j++ )
-            {
-                delete[] mMeshNs[i][j];
-            }
-
-            delete[] mMeshNs[i];
-        }
-
-        delete[] mMeshNs;
     }
 }
 
@@ -242,11 +356,19 @@ void Plot3dCanvas::initColorsList()
 //!************************************************************************
 void Plot3dCanvas::initializeGL()
 {
-    connect( context(), &QOpenGLContext::aboutToBeDestroyed, this, &Plot3dCanvas::cleanup );
-
+    connect( context(), &QOpenGLContext::aboutToBeDestroyed, this, &Plot3dCanvas::cleanupAll );
     initializeOpenGLFunctions();
 
-    make3dData();
+    make3dDataAllocateVxsNs();
+    make3dDataAllocateData();
+    make3dDataAllocateDataBuf();
+
+    make3dDataAssign();
+    make3dDataCompute();
+
+    cleanupData();
+    cleanupDataBuf();
+
     init3dMeshList();
 
     initColorsList();
@@ -260,42 +382,79 @@ void Plot3dCanvas::initializeGL()
 
 //!************************************************************************
 //! Create the 3D data
+//! *** allocate memory for data ***
 //!
 //! @returns nothing
 //!************************************************************************
-void Plot3dCanvas::make3dData()
+void Plot3dCanvas::make3dDataAllocateData()
 {
-    make3dDataAllocate();
-    make3dDataAssign();
-    make3dDataCompute();
-    make3dDataCleanup();
+    if( !mMeshData )
+    {
+        mMeshData = new double*[mMeshDeltaX];
+
+        for( uint16_t i = 0; i < mMeshDeltaX; i++ )
+        {
+            mMeshData[i] = new double[mMeshDeltaY]();
+        }
+    }
 }
 
 
 //!************************************************************************
 //! Create the 3D data
-//! *** allocate memory ***
+//! *** allocate memory for data buffered ***
 //!
 //! @returns nothing
 //!************************************************************************
-void Plot3dCanvas::make3dDataAllocate()
+void Plot3dCanvas::make3dDataAllocateDataBuf()
 {
-    mMeshData = new double*[mMeshDeltaX];
-
-    mMeshVxs = new double**[mMeshDeltaX];
-    mMeshNs = new double**[mMeshDeltaX];
-
-    for( uint16_t i = 0; i < mMeshDeltaX; i++ )
+    if( !mMeshDataBuf )
     {
-        mMeshData[i] = new double[mMeshDeltaY];
+        mMeshDataBuf = new double*[mMeshDeltaX];
 
-        mMeshVxs[i] = new double*[mMeshDeltaY];
-        mMeshNs[i] = new double*[mMeshDeltaY];
-
-        for( uint16_t j = 0; j < mMeshDeltaY; j++ )
+        for( uint16_t i = 0; i < mMeshDeltaX; i++ )
         {
-            mMeshVxs[i][j] = new double[3];
-            mMeshNs[i][j] = new double[3];
+            mMeshDataBuf[i] = new double[mMeshDeltaY]();
+        }
+    }
+}
+
+
+//!************************************************************************
+//! Create the 3D data
+//! *** allocate memory for vertices and normals ***
+//!
+//! @returns nothing
+//!************************************************************************
+void Plot3dCanvas::make3dDataAllocateVxsNs()
+{
+    if( !mMeshVxs )
+    {
+        mMeshVxs = new double**[mMeshDeltaX];
+
+        for( uint16_t i = 0; i < mMeshDeltaX; i++ )
+        {
+            mMeshVxs[i] = new double*[mMeshDeltaY];
+
+            for( uint16_t j = 0; j < mMeshDeltaY; j++ )
+            {
+                mMeshVxs[i][j] = new double[3]();
+            }
+        }
+    }
+
+    if( !mMeshNs )
+    {
+        mMeshNs = new double**[mMeshDeltaX];
+
+        for( uint16_t i = 0; i < mMeshDeltaX; i++ )
+        {
+            mMeshNs[i] = new double*[mMeshDeltaY];
+
+            for( uint16_t j = 0; j < mMeshDeltaY; j++ )
+            {
+                mMeshNs[i][j] = new double[3]();
+            }
         }
     }
 }
@@ -309,44 +468,475 @@ void Plot3dCanvas::make3dDataAllocate()
 //!************************************************************************
 void Plot3dCanvas::make3dDataAssign()
 {
-    uint16_t i = 0;
-    uint16_t j = 0;
+    int16_t i = 0;
+    int16_t j = 0;
+    mZmin = DBL_MAX;
+    mZmax = -DBL_MAX;
 
-    mZmin = 0;
-    mZmax = 0;
-
-    double xStep = ( mXmax - mXmin ) / mMeshDeltaX;
-    double yStep = ( mYmax - mYmin ) / mMeshDeltaY;
-
-    for( j = 0; j < mMeshDeltaY; j++ )
+    switch( mParentPlot3d.getPlot3dType() )
     {
-        double y_crt = mYmin + j * yStep;
+        case Plot3d::PLOT_3D_TYPE_TRANSIENT:
+            {
+                VibrationHandler* vh = VibrationHandler::getInstance();
+                VibrationHandler::AccelerometerDataTriaxial accelDataArrays = vh->getTriaxialAccelArrays();
+                size_t dataLen = accelDataArrays.xArray.size();
 
-        for( i = 0; i < mMeshDeltaX; i++ )
+                for( j = 0; j < mMeshDeltaY - 1; j++ )
+                {
+                    for( i = 0; i < mMeshDeltaX; i++ )
+                    {
+                        mMeshData[i][j] = mMeshDataBuf[i][j + 1];
+                        mMeshDataBuf[i][j] = mMeshData[i][j];
+                    }
+                }
+
+                for( i = 0; i < mMeshDeltaX; i++ )
+                {
+                    size_t index = i * dataLen / mMeshDeltaX;
+
+                    if( index > dataLen - 1 )
+                    {
+                        index = dataLen - 1;
+                    }
+
+                    switch( mParentPlot3d.getAxis() )
+                    {
+                        case Adxl355Adxl357Common::AXIS_X:
+                            mMeshData[i][j] = accelDataArrays.xArray.at( index );
+                            break;
+
+                        case Adxl355Adxl357Common::AXIS_Y:
+                            mMeshData[i][j] = accelDataArrays.yArray.at( index );
+                            break;
+
+                        case Adxl355Adxl357Common::AXIS_Z:
+                            mMeshData[i][j] = accelDataArrays.zArray.at( index );
+                            break;
+
+                        default:
+                            mMeshData[i][j] = 0;
+                            break;
+                    }
+
+                    mMeshDataBuf[i][j] = mMeshData[i][j];
+                }
+            }
+            break;
+
+        case Plot3d::PLOT_3D_TYPE_FFT:
+            {
+                VibrationHandler* vh = VibrationHandler::getInstance();
+                std::vector<VibrationHandler::FftBin> binsVec = vh->getFftBinsOnAxis( mParentPlot3d.getAxis() );
+                size_t dataLen = binsVec.size();
+
+                VibrationHandler::FftBin binMaxValue = *std::max_element( binsVec.begin(), binsVec.end(), compareBinFnc );
+                VibrationHandler::FftBin binMinValue = *std::min_element( binsVec.begin(), binsVec.end(), compareBinFnc );
+
+                if( Plot3d::AXIS_TYPE_LINEAR == mParentPlot3d.getAxisTypeVert() )
+                {
+                    mMaxVert = 1;
+                    mMinVert = 0;
+                    mHaveVertValues = true;
+
+                    for( j = 0; j < mMeshDeltaY - 1; j++ )
+                    {
+                        for( i = 0; i < mMeshDeltaX; i++ )
+                        {
+                            mMeshData[i][j] = mMeshDataBuf[i][j + 1];
+                            mMeshDataBuf[i][j] = mMeshData[i][j];
+                        }
+                    }
+
+                    for( i = 0; i < mMeshDeltaX; i++ )
+                    {
+                        size_t index = i * dataLen / mMeshDeltaX;
+
+                        if( index > dataLen - 1 )
+                        {
+                            index = dataLen - 1;
+                        }
+
+                        mMeshData[i][j] = binsVec.at( index ).value / binMaxValue.value;
+                        mMeshDataBuf[i][j] = mMeshData[i][j];
+                    }
+                }
+                else if( Plot3d::AXIS_TYPE_DB == mParentPlot3d.getAxisTypeVert() )
+                {
+                    static double maxForDbScale = -DBL_MAX;
+                    static double minForDbScale = DBL_MAX;
+
+                    static int32_t maxDb = Numeric::INVALID_MAX_10_DB;
+                    static int32_t minDb = Numeric::INVALID_MIN_10_DB;
+
+                    Numeric* nrInstance = Numeric::getInstance();
+
+                    if( binMaxValue.value > maxForDbScale )
+                    {
+                        maxForDbScale = binMaxValue.value;
+                        maxDb = nrInstance->findMagnitudeMaxDbMultipleOf10( maxForDbScale );
+
+                        if( Numeric::INVALID_MAX_10_DB != maxDb )
+                        {
+                            mMaxVert = maxDb;
+                        }
+                        else
+                        {
+                            maxDb = mMaxVert;
+                        }
+                    }
+
+                    if( binMinValue.value < minForDbScale )
+                    {
+                        minForDbScale = binMinValue.value;
+                        minDb = nrInstance->findMagnitudeMinDbMultipleOf10( minForDbScale );
+
+                        if( Numeric::INVALID_MIN_10_DB != minDb )
+                        {
+                            mMinVert = minDb;
+                        }
+                        else
+                        {
+                            minDb = mMinVert;
+                        }
+                    }
+
+                    mMaxVert = maxDb;
+                    mMinVert = minDb;
+                    mHaveVertValues = true;
+
+                    for( j = 0; j < mMeshDeltaY - 1; j++ )
+                    {
+                        for( i = 0; i < mMeshDeltaX; i++ )
+                        {
+                            mMeshData[i][j] = mMeshDataBuf[i][j + 1];
+                            mMeshDataBuf[i][j] = mMeshData[i][j];
+                        }
+                    }
+
+                    for( i = 0; i < mMeshDeltaX; i++ )
+                    {
+                        size_t index = i * dataLen / mMeshDeltaX;
+
+                        if( index > dataLen - 1 )
+                        {
+                            index = dataLen - 1;
+                        }
+
+                        mMeshData[i][j] = 20 * log10( binsVec.at( index ).value );
+                        mMeshDataBuf[i][j] = mMeshData[i][j];
+                    }
+                }
+            }
+            break;
+
+        case Plot3d::PLOT_3D_TYPE_PERIODOGRAM:
+            {
+                VibrationHandler* vh = VibrationHandler::getInstance();
+                std::vector<VibrationHandler::FftPsd> psdVec = vh->getFftPsdOnAxis( mParentPlot3d.getAxis() );
+                size_t dataLen = psdVec.size();
+
+                VibrationHandler::FftPsd psdMaxValue = *std::max_element( psdVec.begin(), psdVec.end(), comparePsdFnc );
+                VibrationHandler::FftPsd psdMinValue = *std::min_element( psdVec.begin(), psdVec.end(), comparePsdFnc );
+
+                if( Plot3d::AXIS_TYPE_LINEAR == mParentPlot3d.getAxisTypeVert() )
+                {
+                    mMaxVert = 1;
+                    mMinVert = 0;
+                    mHaveVertValues = true;
+
+                    for( j = 0; j < mMeshDeltaY - 1; j++ )
+                    {
+                        for( i = 0; i < mMeshDeltaX; i++ )
+                        {
+                            mMeshData[i][j] = mMeshDataBuf[i][j + 1];
+                            mMeshDataBuf[i][j] = mMeshData[i][j];
+                        }
+                    }
+
+                    for( i = 0; i < mMeshDeltaX; i++ )
+                    {
+                        size_t index = i * dataLen / mMeshDeltaX;
+
+                        if( index > dataLen - 1 )
+                        {
+                            index = dataLen - 1;
+                        }
+
+                        mMeshData[i][j] = psdVec.at( index ).value / psdMaxValue.value;
+                        mMeshDataBuf[i][j] = mMeshData[i][j];
+                    }
+                }
+                else if( Plot3d::AXIS_TYPE_DB == mParentPlot3d.getAxisTypeVert() )
+                {
+                    static double maxForDbScale = -DBL_MAX;
+                    static double minForDbScale = DBL_MAX;
+
+                    static int32_t maxDb = Numeric::INVALID_MAX_10_DB;
+                    static int32_t minDb = Numeric::INVALID_MIN_10_DB;
+
+                    Numeric* nrInstance = Numeric::getInstance();
+
+                    if( psdMaxValue.value > maxForDbScale )
+                    {
+                        maxForDbScale = psdMaxValue.value;
+                        maxDb = nrInstance->findPowerMaxDbMultipleOf10( maxForDbScale );
+
+                        if( Numeric::INVALID_MAX_10_DB != maxDb )
+                        {
+                            mMaxVert = maxDb;
+                        }
+                        else
+                        {
+                            maxDb = mMaxVert;
+                        }
+                    }
+
+                    if( psdMinValue.value < minForDbScale )
+                    {
+                        minForDbScale = psdMinValue.value;
+                        minDb = nrInstance->findPowerMinDbMultipleOf10( minForDbScale );
+
+                        if( Numeric::INVALID_MIN_10_DB != minDb )
+                        {
+                            mMinVert = minDb;
+                        }
+                        else
+                        {
+                            minDb = mMinVert;
+                        }
+                    }
+
+                    mMaxVert = maxDb;
+                    mMinVert = minDb;
+                    mHaveVertValues = true;
+
+                    for( j = 0; j < mMeshDeltaY - 1; j++ )
+                    {
+                        for( i = 0; i < mMeshDeltaX; i++ )
+                        {
+                            mMeshData[i][j] = mMeshDataBuf[i][j + 1];
+                            mMeshDataBuf[i][j] = mMeshData[i][j];
+                        }
+                    }
+
+                    for( i = 0; i < mMeshDeltaX; i++ )
+                    {
+                        size_t index = i * dataLen / mMeshDeltaX;
+
+                        if( index > dataLen - 1 )
+                        {
+                            index = dataLen - 1;
+                        }
+
+                        mMeshData[i][j] = 10 * log10( psdVec.at( index ).value );
+                        mMeshDataBuf[i][j] = mMeshData[i][j];
+                    }
+                }
+            }
+            break;
+
+        case Plot3d::PLOT_3D_TYPE_SRS:
+            {
+                VibrationHandler* vh = VibrationHandler::getInstance();
+                std::vector<VibrationHandler::Srs> srsVec = vh->getSrsOnAxis( mParentPlot3d.getAxis() );
+                size_t dataLen = srsVec.size();
+
+                VibrationHandler::Srs srsMaxValue = *std::max_element( srsVec.begin() + 1, srsVec.end(), compareSrsFnc );
+                VibrationHandler::Srs srsMinValue = *std::min_element( srsVec.begin() + 1, srsVec.end(), compareSrsFnc );
+
+                if( Plot3d::AXIS_TYPE_LOG == mParentPlot3d.getAxisTypeVert() )
+                {
+                    static double maxForLogScale = -DBL_MAX;
+                    static double minForLogScale = DBL_MAX;
+
+                    static double maxLog = Numeric::INVALID_MAX_LOG;
+                    static double minLog = Numeric::INVALID_MIN_LOG;
+
+                    Numeric* nrInstance = Numeric::getInstance();
+
+                    if( srsMaxValue.value > maxForLogScale )
+                    {
+                        maxForLogScale = srsMaxValue.value;
+                        maxLog = nrInstance->findLogMaxPwrOf10( maxForLogScale );
+
+                        if( Numeric::INVALID_MAX_LOG != maxLog )
+                        {
+                            mMaxVert = maxLog;
+                        }
+                        else
+                        {
+                            maxLog = mMaxVert;
+                        }
+                    }
+
+                    if( srsMinValue.value < minForLogScale )
+                    {
+                        minForLogScale = srsMinValue.value;
+                        minLog = nrInstance->findLogMinPwrOf10( minForLogScale );
+
+                        if( Numeric::INVALID_MIN_LOG != minLog )
+                        {
+                            mMinVert = minLog;
+                        }
+                        else
+                        {
+                            minLog = mMinVert;
+                        }
+                    }
+
+                    mMaxVert = maxLog;
+                    mMinVert = minLog;
+                    mHaveVertValues = true;
+
+                    for( j = 0; j < mMeshDeltaY - 1; j++ )
+                    {
+                        for( i = 0; i < mMeshDeltaX; i++ )
+                        {
+                            mMeshData[i][j] = mMeshDataBuf[i][j + 1];
+                            mMeshDataBuf[i][j] = mMeshData[i][j];
+                        }
+                    }
+
+                    size_t srsPoint = 0;
+
+                    for( ; srsPoint < dataLen; srsPoint++ )
+                    {
+                        if( srsVec.at( srsPoint ).naturalFrequency >= SrsThread::NATURAL_FREQ_MIN )
+                        {
+                            break;
+                        }
+                    }
+
+                    for( i = srsPoint * mMeshDeltaX / dataLen; i < mMeshDeltaX; i++ )
+                    {
+                        size_t index = i * dataLen / mMeshDeltaX;
+
+                        if( index > dataLen - 1 )
+                        {
+                            index = dataLen - 1;
+                        }
+
+                        mMeshData[i][j] = log10( srsVec.at( index ).value / pow( 10.0, mMinVert ) );
+                        mMeshDataBuf[i][j] = mMeshData[i][j];
+                    }
+                }
+            }
+            break;
+
+        case Plot3d::PLOT_3D_TYPE_CEPSTRUM:
+            {
+                VibrationHandler* vh = VibrationHandler::getInstance();
+                std::vector<VibrationHandler::FftCepstrum> cepstrumVec = vh->getFftCepstrumOnAxis( mParentPlot3d.getAxis() );
+                size_t dataLen = cepstrumVec.size();
+
+                VibrationHandler::FftCepstrum cepstrumMaxValue = *std::max_element( cepstrumVec.begin(), cepstrumVec.end(), compareCepstrumFnc );
+                VibrationHandler::FftCepstrum cepstrumMinValue = *std::min_element( cepstrumVec.begin(), cepstrumVec.end(), compareCepstrumFnc );
+
+                if( Plot3d::AXIS_TYPE_DB == mParentPlot3d.getAxisTypeVert() )
+                {
+                    static double maxForDbScale = -DBL_MAX;
+                    static double minForDbScale = DBL_MAX;
+
+                    static int32_t maxDb = Numeric::INVALID_MAX_10_DB;
+                    static int32_t minDb = Numeric::INVALID_MIN_10_DB;
+
+                    Numeric* nrInstance = Numeric::getInstance();
+
+                    if( cepstrumMaxValue.value > maxForDbScale )
+                    {
+                        maxForDbScale = cepstrumMaxValue.value;
+                        maxDb = nrInstance->findPowerMaxDbMultipleOf10( maxForDbScale );
+
+                        if( Numeric::INVALID_MAX_10_DB != maxDb )
+                        {
+                            mMaxVert = maxDb;
+                        }
+                        else
+                        {
+                            maxDb = mMaxVert;
+                        }
+                    }
+
+                    if( cepstrumMinValue.value < minForDbScale )
+                    {
+                        minForDbScale = cepstrumMinValue.value;
+                        minDb = nrInstance->findPowerMinDbMultipleOf10( minForDbScale );
+
+                        if( Numeric::INVALID_MIN_10_DB != minDb )
+                        {
+                            mMinVert = minDb;
+                        }
+                        else
+                        {
+                            minDb = mMinVert;
+                        }
+                    }
+
+                    mMaxVert = maxDb;
+                    mMinVert = minDb;
+                    mHaveVertValues = true;
+
+                    for( j = 0; j < mMeshDeltaY - 1; j++ )
+                    {
+                        for( i = 0; i < mMeshDeltaX; i++ )
+                        {
+                            mMeshData[i][j] = mMeshDataBuf[i][j + 1];
+                            mMeshDataBuf[i][j] = mMeshData[i][j];
+                        }
+                    }
+
+                    for( i = 0; i < mMeshDeltaX; i++ )
+                    {
+                        size_t index = i * dataLen / mMeshDeltaX;
+
+                        if( index > dataLen - 1 )
+                        {
+                            index = dataLen - 1;
+                        }
+
+                        mMeshData[i][j] = 10 * log10( cepstrumVec.at( index ).value );
+                        mMeshDataBuf[i][j] = mMeshData[i][j];
+                    }
+                }
+            }
+            break;
+
+        default:
+            break;
+    }
+
+    if( mHaveVertValues )
+    {
+        switch( mParentPlot3d.getPlot3dType() )
         {
-            double x_crt = mXmin + i * xStep;
+            case Plot3d::PLOT_3D_TYPE_TRANSIENT:
+            case Plot3d::PLOT_3D_TYPE_FFT:
+            case Plot3d::PLOT_3D_TYPE_PERIODOGRAM:
+            case Plot3d::PLOT_3D_TYPE_CEPSTRUM:
+                mZmax = mMaxVert;
+                mZmin = mMinVert;
+                break;
 
-            mMeshData[i][j] = sin( x_crt ) * cos( y_crt );
+            case Plot3d::PLOT_3D_TYPE_SRS:
+                mZmax = log10( mMaxVert );
+                mZmin = log10( mMinVert );
+                break;
 
-            if( mZmax < mMeshData[i][j] )
-            {
-                mZmax = mMeshData[i][j];
-            }
-
-            if( mZmin > mMeshData[i][j] )
-            {
-                mZmin = mMeshData[i][j];
-            }
+            default:
+                break;
         }
     }
 
-    mZmax -= mZmin;
-
-    for( i = 0; i < mMeshDeltaX; i++ )
+    if( mZmin <= mZmax )
     {
-        for( j = 0; j < mMeshDeltaY; j++ )
+        mZmax -= mZmin;
+
+        for( i = 0; i < mMeshDeltaX; i++ )
         {
-            mMeshData[i][j] += -mZmin;
+            for( j = 0; j < mMeshDeltaY; j++ )
+            {
+                mMeshData[i][j] -= mZmin;
+            }
         }
     }
 }
@@ -371,7 +961,7 @@ void Plot3dCanvas::make3dDataCompute()
 
         for( j = 0; j < mMeshDeltaY; j++ )
         {
-            meshFacetNs[i][j] = new double[3];
+            meshFacetNs[i][j] = new double[3]();
         }
     }
 
@@ -493,23 +1083,6 @@ void Plot3dCanvas::make3dDataCompute()
     }
 
     delete[] meshFacetNs;
-}
-
-
-//!************************************************************************
-//! Create the 3D data
-//! *** deallocate memory ***
-//!
-//! @returns nothing
-//!************************************************************************
-void Plot3dCanvas::make3dDataCleanup()
-{
-    for( uint16_t i = 0; i < mMeshDeltaX; i++ )
-    {
-        delete[] mMeshData[i];
-    }
-
-    delete[] mMeshData;
 }
 
 
@@ -660,13 +1233,58 @@ void Plot3dCanvas::paintGL()
 
     int screenX = 0;
     int screenY = 0;
-    convertToScreenCoords( -0.975, -0.85, &screenX, &screenY );
-    outputScaledText( screenX, screenY, 1, QString::number( mZmin ), Qt::cyan );
+    QString str;
 
-    convertToScreenCoords( -0.975, -0.20, &screenX, &screenY );
-    outputScaledText( screenX, screenY, 1, QString::number( mZmax + mZmin ), Qt::cyan );
+    if( mHaveVertValues )
+    {
+        convertToScreenCoords( -0.975, -0.85, &screenX, &screenY );
+        outputScaledText( screenX, screenY, 1, QString::number( mMinVert ), Qt::cyan );
+
+        convertToScreenCoords( -0.975, -0.20, &screenX, &screenY );
+        outputScaledText( screenX, screenY, 1, QString::number( mMaxVert ), Qt::cyan );
+    }
+
+    convertToScreenCoords( -0.7, -0.95, &screenX, &screenY );
+    str = "Mesh size = ";
+    str += QString::number( mMeshDeltaX );
+    str += "x";
+    str += QString::number( mMeshDeltaY );
+    outputScaledText( screenX, screenY, 1, str, Qt::gray );
+
+    convertToScreenCoords( -0.7, -0.89, &screenX, &screenY );
+    str = "Mesh fill ";
+    str += mMeshFill ? "ON" : "OFF";
+    outputScaledText( screenX, screenY, 1, str, Qt::gray );
+
+    convertToScreenCoords( -0.7, -0.83, &screenX, &screenY );
+    str = "Light ";
+    str += mLightEnabled ? "ON" : "OFF";
+    outputScaledText( screenX, screenY, 1, str, Qt::gray );
 
     glFlush();
+}
+
+
+//!************************************************************************
+//! Refresh the content
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void Plot3dCanvas::refresh()
+{
+    if( mParentPlot3d.isVisible() )
+    {
+        makeCurrent();
+            make3dDataAllocateData();
+            make3dDataAllocateDataBuf();
+
+            make3dDataAssign();
+            make3dDataCompute();
+
+            init3dMeshList();
+            update();
+        doneCurrent();
+    }
 }
 
 
@@ -762,6 +1380,18 @@ void Plot3dCanvas::setParameters
         mMaxFreqLog = pow( 10.0, static_cast<double>( ceil( log10( mMaxFreq ) ) ) );
         mMaxQuefrency = mTimeGate;
         updateMinFrequencyLog();
+
+        makeCurrent();
+            make3dDataAllocateData();
+            make3dDataAllocateDataBuf();
+
+            make3dDataAssign();
+            make3dDataCompute();
+
+            init3dMeshList();
+
+            update();
+        doneCurrent();
     }
 }
 
@@ -782,6 +1412,18 @@ void Plot3dCanvas::setVerticalMaxTransient
     if( Plot3d::PLOT_3D_TYPE_TRANSIENT == mParentPlot3d.getPlot3dType() )
     {
         mHaveVertValues = true;
+
+        makeCurrent();
+            make3dDataAllocateData();
+            make3dDataAllocateDataBuf();
+
+            make3dDataAssign();
+            make3dDataCompute();
+
+            init3dMeshList();
+
+            update();
+        doneCurrent();
     }
 }
 
@@ -798,14 +1440,26 @@ QSize Plot3dCanvas::sizeHint() const
 
 
 //!************************************************************************
+//! Stop the refresh
+//!
+//! @returns nothing
+//!************************************************************************
+void Plot3dCanvas::stopRefresh()
+{
+    mRefreshTimer->stop();
+}
+
+
+//!************************************************************************
 //! Toggle the lighting
 //!
 //! @returns nothing
 //!************************************************************************
 void Plot3dCanvas::toogleLightEnable()
 {
+    mLightEnabled = !mLightEnabled;
+
     makeCurrent();
-        mLightEnabled = !mLightEnabled;
         update();
     doneCurrent();
 }
@@ -818,8 +1472,208 @@ void Plot3dCanvas::toogleLightEnable()
 //!************************************************************************
 void Plot3dCanvas::toogleMeshFill()
 {
+    mMeshFill = !mMeshFill;
+
     makeCurrent();
-        mMeshFill = !mMeshFill;
+        update();
+    doneCurrent();
+}
+
+
+//!************************************************************************
+//! Update the content for new cepstrum data
+//!
+//! @returns nothing
+//!************************************************************************
+void Plot3dCanvas::updateAdxlCepstrum()
+{
+    if( mParentPlot3d.isVisible() && ( Plot3d::PLOT_3D_TYPE_CEPSTRUM == mParentPlot3d.getPlot3dType() ) )
+    {
+        if( !mRefreshTimer->isActive() )
+        {
+            mRefreshTimer->start( REFRESH_MS );
+        }
+    }
+}
+
+
+//!************************************************************************
+//! Update the content for new accelerograms
+//!
+//! @returns nothing
+//!************************************************************************
+void Plot3dCanvas::updateAdxlData()
+{
+    if( mParentPlot3d.isVisible() && ( Plot3d::PLOT_3D_TYPE_TRANSIENT == mParentPlot3d.getPlot3dType() ) )
+    {
+        if( !mRefreshTimer->isActive() )
+        {
+            mRefreshTimer->start( REFRESH_MS );
+        }
+    }
+}
+
+
+//!************************************************************************
+//! Update the content for new FFT data
+//!
+//! @returns nothing
+//!************************************************************************
+void Plot3dCanvas::updateAdxlFft()
+{
+    if( mParentPlot3d.isVisible() && ( Plot3d::PLOT_3D_TYPE_FFT == mParentPlot3d.getPlot3dType() ) )
+    {
+        if( !mRefreshTimer->isActive() )
+        {
+            mRefreshTimer->start( REFRESH_MS );
+        }
+    }
+}
+
+
+//!************************************************************************
+//! Update the content for new periodogram data
+//!
+//! @returns nothing
+//!************************************************************************
+void Plot3dCanvas::updateAdxlPeriodogram()
+{
+    if( mParentPlot3d.isVisible() && ( Plot3d::PLOT_3D_TYPE_PERIODOGRAM == mParentPlot3d.getPlot3dType() ) )
+    {
+        if( !mRefreshTimer->isActive() )
+        {
+            mRefreshTimer->start( REFRESH_MS );
+        }
+    }
+}
+
+
+//!************************************************************************
+//! Update the content for new SRS data
+//!
+//! @returns nothing
+//!************************************************************************
+void Plot3dCanvas::updateAdxlSrs()
+{
+    if( mParentPlot3d.isVisible() && ( Plot3d::PLOT_3D_TYPE_SRS == mParentPlot3d.getPlot3dType() ) )
+    {
+        if( !mRefreshTimer->isActive() )
+        {
+            mRefreshTimer->start( REFRESH_MS );
+        }
+    }
+}
+
+
+//!************************************************************************
+//! Update the content for Down key
+//!
+//! @returns nothing
+//!************************************************************************
+void Plot3dCanvas::updateKeyDown()
+{
+    if( mMeshDeltaX > 10 )
+    {
+        cleanupVxsNs();
+        cleanupData();
+        cleanupDataBuf();
+
+        mMeshDeltaX -= 10;
+
+        makeCurrent();
+            make3dDataAllocateVxsNs();
+            make3dDataAllocateData();
+            make3dDataAllocateDataBuf();
+
+            make3dDataAssign();
+            make3dDataCompute();
+
+            init3dMeshList();
+            update();
+        doneCurrent();
+    }
+}
+
+
+//!************************************************************************
+//! Update the content for Left key
+//!
+//! @returns nothing
+//!************************************************************************
+void Plot3dCanvas::updateKeyLeft()
+{
+    if( mMeshDeltaY > 10 )
+    {
+        cleanupVxsNs();
+        cleanupData();
+        cleanupDataBuf();
+
+        mMeshDeltaY -= 10;
+
+        makeCurrent();
+            make3dDataAllocateVxsNs();
+            make3dDataAllocateData();
+            make3dDataAllocateDataBuf();
+
+            make3dDataAssign();
+            make3dDataCompute();
+
+            init3dMeshList();
+            update();
+        doneCurrent();
+    }
+}
+
+
+//!************************************************************************
+//! Update the content for Right key
+//!
+//! @returns nothing
+//!************************************************************************
+void Plot3dCanvas::updateKeyRight()
+{    
+    cleanupVxsNs();
+    cleanupData();
+    cleanupDataBuf();
+
+    mMeshDeltaY += 10;
+
+    makeCurrent();
+        make3dDataAllocateVxsNs();
+        make3dDataAllocateData();
+        make3dDataAllocateDataBuf();
+
+        make3dDataAssign();
+        make3dDataCompute();
+
+        init3dMeshList();
+        update();
+    doneCurrent();
+}
+
+
+//!************************************************************************
+//! Update the content for Up key
+//!
+//! @returns nothing
+//!************************************************************************
+void Plot3dCanvas::updateKeyUp()
+{    
+    cleanupVxsNs();
+    cleanupData();
+    cleanupDataBuf();
+
+    mMeshDeltaX += 10;
+
+    makeCurrent();
+        make3dDataAllocateVxsNs();
+        make3dDataAllocateData();
+        make3dDataAllocateDataBuf();
+
+        make3dDataAssign();
+        make3dDataCompute();
+
+        init3dMeshList();
         update();
     doneCurrent();
 }
@@ -837,64 +1691,5 @@ void Plot3dCanvas::updateMinFrequencyLog()
     if( Plot3d::PLOT_3D_TYPE_SRS == mParentPlot3d.getPlot3dType() )
     {
         mMinFreqLog = SrsThread::NATURAL_FREQ_MIN;
-    }
-}
-
-
-void Plot3dCanvas::updateKeyUp()
-{
-    cleanup();
-
-    mMeshDeltaX += 10;
-
-    makeCurrent();
-        make3dData();
-        init3dMeshList();
-        update();
-    doneCurrent();
-}
-
-void Plot3dCanvas::updateKeyDown()
-{
-    if( mMeshDeltaX > 10 )
-    {
-        cleanup();
-
-        mMeshDeltaX -= 10;
-
-        makeCurrent();
-            make3dData();
-            init3dMeshList();
-            update();
-        doneCurrent();
-    }
-}
-
-void Plot3dCanvas::updateKeyRight()
-{
-    cleanup();
-
-    mMeshDeltaY += 10;
-
-    makeCurrent();
-        make3dData();
-        init3dMeshList();
-        update();
-    doneCurrent();
-}
-
-void Plot3dCanvas::updateKeyLeft()
-{
-    if( mMeshDeltaY > 10 )
-    {
-        cleanup();
-
-        mMeshDeltaY -= 10;
-
-        makeCurrent();
-            make3dData();
-            init3dMeshList();
-            update();
-        doneCurrent();
     }
 }

@@ -45,7 +45,16 @@
     <addaction name="menuHorizontalAxis"/>
     <addaction name="menuVerticalAxis"/>
    </widget>
+   <widget class="QMenu" name="menuScene">
+    <property name="title">
+     <string>S&amp;cene</string>
+    </property>
+    <addaction name="actionMeshToggle"/>
+    <addaction name="actionLightToggle"/>
+    <addaction name="actionResetView"/>
+   </widget>
    <addaction name="menuSettings"/>
+   <addaction name="menuScene"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionExit">
@@ -106,6 +115,21 @@
   <action name="actionVertDb">
    <property name="text">
     <string>d&amp;B</string>
+   </property>
+  </action>
+  <action name="actionMeshToggle">
+   <property name="text">
+    <string>&amp;Mesh toggle - M</string>
+   </property>
+  </action>
+  <action name="actionLightToggle">
+   <property name="text">
+    <string>&amp;Light toggle - L</string>
+   </property>
+  </action>
+  <action name="actionResetView">
+   <property name="text">
+    <string>&amp;Reset view - R</string>
    </property>
   </action>
  </widget>

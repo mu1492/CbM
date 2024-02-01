@@ -158,6 +158,10 @@ class Plot3d : public QMainWindow
         void handleHorizAxisLinear();
         void handleHorizAxisLog();
 
+        void handleSceneLightToggle();
+        void handleSceneMeshToggle();
+        void handleSceneResetView();
+
         void handleVertAxisLinear();
         void handleVertAxisLog();
         void handleVertAxisDb();

@@ -269,7 +269,6 @@ SpectralViewer::SpectralViewer
     connect( mMainUi->actionSelectPlots3D, &QAction::triggered, this, &SpectralViewer::handleMenuSelectPlots3D );
     initPlot2dOptionsControls();
     initPlot3dOptionsControls();
-    mMainUi->actionSelectPlots3D->setEnabled( false );
 
     connect( mMainUi->actionAbout, &QAction::triggered, this, &SpectralViewer::handleAbout );
 

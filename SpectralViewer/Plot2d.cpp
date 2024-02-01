@@ -389,9 +389,12 @@ Plot2d::Plot2dType Plot2d::getPlot2dType() const
     int  aAxis   //!< axis
     )
 {
-    if( PLOT_2D_TYPE_CEPSTRUM == mType && aAxis == mAxis )
+    if( this->isVisible() )
     {
-        mPlot2dCanvas.update();
+        if( PLOT_2D_TYPE_CEPSTRUM == mType && aAxis == mAxis )
+        {
+            mPlot2dCanvas.update();
+        }
     }
 }
 
@@ -403,9 +406,12 @@ Plot2d::Plot2dType Plot2d::getPlot2dType() const
 //!************************************************************************
 /* slot */ void Plot2d::receiveNewData()
 {
-    if( PLOT_2D_TYPE_TRANSIENT == mType )
+    if( this->isVisible() )
     {
-        mPlot2dCanvas.update();
+        if( PLOT_2D_TYPE_TRANSIENT == mType )
+        {
+            mPlot2dCanvas.update();
+        }
     }
 }
 
@@ -420,9 +426,12 @@ Plot2d::Plot2dType Plot2d::getPlot2dType() const
     int  aAxis   //!< axis
     )
 {
-    if( PLOT_2D_TYPE_FFT == mType && aAxis == mAxis )
+    if( this->isVisible() )
     {
-        mPlot2dCanvas.update();
+        if( PLOT_2D_TYPE_FFT == mType && aAxis == mAxis )
+        {
+            mPlot2dCanvas.update();
+        }
     }
 }
 
@@ -437,9 +446,12 @@ Plot2d::Plot2dType Plot2d::getPlot2dType() const
     int  aAxis   //!< axis
     )
 {
-    if( PLOT_2D_TYPE_PERIODOGRAM == mType && aAxis == mAxis )
+    if( this->isVisible() )
     {
-        mPlot2dCanvas.update();
+        if( PLOT_2D_TYPE_PERIODOGRAM == mType && aAxis == mAxis )
+        {
+            mPlot2dCanvas.update();
+        }
     }
 }
 
@@ -454,9 +466,12 @@ Plot2d::Plot2dType Plot2d::getPlot2dType() const
     int  aAxis   //!< axis
     )
 {
-    if( PLOT_2D_TYPE_SRS == mType && aAxis == mAxis )
+    if( this->isVisible() )
     {
-        mPlot2dCanvas.update();
+        if( PLOT_2D_TYPE_SRS == mType && aAxis == mAxis )
+        {
+            mPlot2dCanvas.update();
+        }
     }
 }
 

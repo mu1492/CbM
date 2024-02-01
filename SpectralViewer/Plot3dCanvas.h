@@ -24,12 +24,15 @@ This file contains the definitions for drawing 3D plots.
 #ifndef Plot3dCanvas_h
 #define Plot3dCanvas_h
 
+#include "VibrationHandler.h"
+
 #include <cstdint>
 
 #include <QFont>
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
 #include <QString>
+#include <QTimer>
 
 class Plot3d;
 
@@ -95,6 +98,7 @@ class Plot3dCanvas : public QOpenGLWidget, protected QOpenGLFunctions
 
         static const uint8_t MESH_COLORS_NR = sizeof( MESH_COLORS ) / ( sizeof( MESH_COLORS[0] ) );   //!< number of mesh colors
 
+        static const uint8_t REFRESH_MS = 100;  //!< refresh period [ms]
 
     //************************************************************************
     // functions
@@ -125,14 +129,22 @@ class Plot3dCanvas : public QOpenGLWidget, protected QOpenGLFunctions
 
         void resetView();
 
+        void stopRefresh();
+
         void toogleLightEnable();
 
         void toogleMeshFill();
 
-        void updateKeyUp();
+        void updateAdxlCepstrum();
+        void updateAdxlData();
+        void updateAdxlFft();
+        void updateAdxlPeriodogram();
+        void updateAdxlSrs();        
+
         void updateKeyDown();
-        void updateKeyRight();
         void updateKeyLeft();
+        void updateKeyRight();
+        void updateKeyUp();
 
     protected:
         void initializeGL() override;
@@ -161,6 +173,35 @@ class Plot3dCanvas : public QOpenGLWidget, protected QOpenGLFunctions
             ) override;
 
     private:
+        static bool compareBinFnc
+            (
+            VibrationHandler::FftBin x,     //!< first object
+            VibrationHandler::FftBin y      //!< second object
+            );
+
+        static bool compareCepstrumFnc
+            (
+            VibrationHandler::FftCepstrum x,     //!< first object
+            VibrationHandler::FftCepstrum y      //!< second object
+            );
+
+        static bool comparePsdFnc
+            (
+            VibrationHandler::FftPsd x,     //!< first object
+            VibrationHandler::FftPsd y      //!< second object
+            );
+
+        static bool compareSrsFnc
+            (
+            VibrationHandler::Srs x,        //!< first object
+            VibrationHandler::Srs y         //!< second object
+            );
+
+        void cleanupAll();
+
+        void cleanupData();
+        void cleanupDataBuf();
+
         void convertToScreenCoords
             (
             const float aProjX,     //!< input x
@@ -173,15 +214,13 @@ class Plot3dCanvas : public QOpenGLWidget, protected QOpenGLFunctions
 
         void initColorsList();
 
-        void make3dData();
+        void make3dDataAllocateData();
+        void make3dDataAllocateDataBuf();
 
-        void make3dDataAllocate();
+        void make3dDataAllocateVxsNs();
 
         void make3dDataAssign();
-
-        void make3dDataCompute();
-
-        void make3dDataCleanup();
+        void make3dDataCompute();        
 
         void rotatePt2Vec
             (
@@ -202,7 +241,9 @@ class Plot3dCanvas : public QOpenGLWidget, protected QOpenGLFunctions
         void updateMinFrequencyLog();
 
     private slots:
-        void cleanup();
+        void cleanupVxsNs();
+
+        void refresh();
 
 
     //************************************************************************
@@ -235,6 +276,7 @@ class Plot3dCanvas : public QOpenGLWidget, protected QOpenGLFunctions
 
         uint32_t            mMeshList;              //!< mesh list
         double**            mMeshData;              //!< mesh data
+        double**            mMeshDataBuf;           //!< mesh data buffered
         double***           mMeshVxs;               //!< mesh vertices
         double***           mMeshNs;                //!< mesh normals
         bool                mMeshFill;              //!< true if mesh is filled
@@ -248,12 +290,10 @@ class Plot3dCanvas : public QOpenGLWidget, protected QOpenGLFunctions
         int                 mRotMouseButton;        //!< mouse button for plot rotation
         bool                mRotIsActive;           //!< rotation status
 
-        double              mXmin;
-        double              mXmax;
-        double              mYmin;
-        double              mYmax;
-        double              mZmin;
-        double              mZmax;
+        double              mZmin;                  //!< maximum value on z axis
+        double              mZmax;                  //!< maximum value on z axis
+
+        QTimer*             mRefreshTimer;          //!< refresh timer
 };
 
 #endif // Plot3dCanvas_h

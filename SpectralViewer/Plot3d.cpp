@@ -69,7 +69,7 @@ Plot3d::Plot3d
     this->setWindowTitle( formatTitle() );
 
     //****************************************
-    // menus
+    // Settings menu
     //****************************************
     switch( mType )
     {
@@ -121,6 +121,12 @@ Plot3d::Plot3d
     connect( mPlot3dUi->actionVertLog, &QAction::triggered, this, &Plot3d::handleVertAxisLog );
     connect( mPlot3dUi->actionVertDb, &QAction::triggered, this, &Plot3d::handleVertAxisDb );
 
+    //****************************************
+    // Scene menu
+    //****************************************
+    connect( mPlot3dUi->actionMeshToggle, &QAction::triggered, this, &Plot3d::handleSceneMeshToggle );
+    connect( mPlot3dUi->actionLightToggle, &QAction::triggered, this, &Plot3d::handleSceneLightToggle );
+    connect( mPlot3dUi->actionResetView, &QAction::triggered, this, &Plot3d::handleSceneResetView );
 
     //****************************************
     // paint&draw
@@ -154,6 +160,7 @@ void Plot3d::closeEvent
     QCloseEvent*    aEvent      //!< close event
     )
 {
+    mPlot3dCanvas.stopRefresh();
     emit closeSignal( static_cast<int>( mType ), static_cast<int>( mAxis ) );
     aEvent->accept();
 }
@@ -242,6 +249,39 @@ Plot3d::Plot3dType Plot3d::getPlot3dType() const
     mHorizAxisType = AXIS_TYPE_LOG;
     updateMenuHoriz();
     mPlot3dCanvas.update();
+}
+
+
+//!************************************************************************
+//! Handle for scene - light toggle
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void Plot3d::handleSceneLightToggle()
+{
+    mPlot3dCanvas.toogleLightEnable();
+}
+
+
+//!************************************************************************
+//! Handle for scene - mesh toggle
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void Plot3d::handleSceneMeshToggle()
+{
+    mPlot3dCanvas.toogleMeshFill();
+}
+
+
+//!************************************************************************
+//! Handle for scene - reset view
+//!
+//! @returns nothing
+//!************************************************************************
+/* slot */ void Plot3d::handleSceneResetView()
+{
+    mPlot3dCanvas.resetView();
 }
 
 
@@ -342,9 +382,12 @@ void Plot3d::keyPressEvent
     int  aAxis   //!< axis
     )
 {
-    if( PLOT_3D_TYPE_CEPSTRUM == mType && aAxis == mAxis )
+    if( this->isVisible() )
     {
-        mPlot3dCanvas.update();
+        if( PLOT_3D_TYPE_CEPSTRUM == mType && aAxis == mAxis )
+        {
+            mPlot3dCanvas.updateAdxlCepstrum();
+        }
     }
 }
 
@@ -356,9 +399,12 @@ void Plot3d::keyPressEvent
 //!************************************************************************
 /* slot */ void Plot3d::receiveNewData()
 {
-    if( PLOT_3D_TYPE_TRANSIENT == mType )
+    if( this->isVisible() )
     {
-        mPlot3dCanvas.update();
+        if( PLOT_3D_TYPE_TRANSIENT == mType )
+        {
+            mPlot3dCanvas.updateAdxlData();
+        }
     }
 }
 
@@ -373,9 +419,12 @@ void Plot3d::keyPressEvent
     int  aAxis   //!< axis
     )
 {
-    if( PLOT_3D_TYPE_FFT == mType && aAxis == mAxis )
+    if( this->isVisible() )
     {
-        mPlot3dCanvas.update();
+        if( PLOT_3D_TYPE_FFT == mType && aAxis == mAxis )
+        {
+            mPlot3dCanvas.updateAdxlFft();
+        }
     }
 }
 
@@ -390,9 +439,12 @@ void Plot3d::keyPressEvent
     int  aAxis   //!< axis
     )
 {
-    if( PLOT_3D_TYPE_PERIODOGRAM == mType && aAxis == mAxis )
+    if( this->isVisible() )
     {
-        mPlot3dCanvas.update();
+        if( PLOT_3D_TYPE_PERIODOGRAM == mType && aAxis == mAxis )
+        {
+            mPlot3dCanvas.updateAdxlPeriodogram();
+        }
     }
 }
 
@@ -407,9 +459,12 @@ void Plot3d::keyPressEvent
     int  aAxis   //!< axis
     )
 {
-    if( PLOT_3D_TYPE_SRS == mType && aAxis == mAxis )
+    if( this->isVisible() )
     {
-        mPlot3dCanvas.update();
+        if( PLOT_3D_TYPE_SRS == mType && aAxis == mAxis )
+        {
+            mPlot3dCanvas.updateAdxlSrs();
+        }
     }
 }
 
@@ -428,7 +483,6 @@ void Plot3d::setParameters
     if( aSps > 0 && aFftSize > 0 )
     {
         mPlot3dCanvas.setParameters( aSps, aFftSize );
-        mPlot3dCanvas.update();
     }
 }
 
@@ -444,7 +498,6 @@ void Plot3d::setVerticalMaxTransient
     )
 {
     mPlot3dCanvas.setVerticalMaxTransient( aVerticalMax );
-    mPlot3dCanvas.update();
 }
 
 
