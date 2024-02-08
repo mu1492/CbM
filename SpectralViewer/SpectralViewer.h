@@ -141,12 +141,29 @@ class SpectralViewer : public QMainWindow
             Active3dPlots   zAxis;      //!< active 3D plots on Z axis
         }Plot3dOptions;
 
+        static const uint16_t NULLIFY_SAMPLES_DEFAULT = 200;     //!< default number of samples for nullify
+
+        typedef enum : uint8_t
+        {
+            CONFIG_FIELD_TYPE,
+            CONFIG_FIELD_RANGE,
+            CONFIG_FIELD_ODR,
+            CONFIG_FIELD_NULLIFY,
+            CONFIG_FIELD_NULLIFY_SAMPLES,
+            CONFIG_FIELD_BATCHES_COUNT,
+            CONFIG_FIELD_SAMPLES_PER_BATCH,
+            CONFIG_FIELD_BATCHES_PERIOD
+        }ConfigField;
+
+        static const std::map<ConfigField, std::string> CONFIG_FIELD_NAMES;
+
         typedef struct
         {
             QString                                 accelerometerType;  //!< ADXL355 or ADXL357
             Adxl355Adxl357Common::AccelerationRange range;              //!< acceleration range
             Adxl355Adxl357Common::OdrSetting        odrSetting;         //!< ODR setting
             bool                                    nullifyActive;      //!< true if nullify is applied
+            uint16_t                                nullifySamples;     //!< number of samples for nullify
             uint32_t                                batchesCount;       //!< number of batches
             uint32_t                                samplesCount;       //!< number of samples/batch
             double                                  batchesPeriod;      //!< period of batches [s]

@@ -146,6 +146,8 @@ class Plot3dCanvas : public QOpenGLWidget, protected QOpenGLFunctions
         void updateKeyRight();
         void updateKeyUp();
 
+        void wipeAllData();
+
     protected:
         void initializeGL() override;
 

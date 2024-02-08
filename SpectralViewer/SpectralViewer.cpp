@@ -51,6 +51,18 @@ This file contains the sources for the mechanical vibrations spectral viewer.
 
 const QString SpectralViewer::APP_NAME = "Spectral Viewer";
 
+const std::map<SpectralViewer::ConfigField, std::string> SpectralViewer::CONFIG_FIELD_NAMES =
+{
+    { SpectralViewer::CONFIG_FIELD_TYPE,              "type"              },
+    { SpectralViewer::CONFIG_FIELD_RANGE,             "range"             },
+    { SpectralViewer::CONFIG_FIELD_ODR,               "odr"               },
+    { SpectralViewer::CONFIG_FIELD_NULLIFY,           "nullify"           },
+    { SpectralViewer::CONFIG_FIELD_NULLIFY_SAMPLES,   "nullify_samples"   },
+    { SpectralViewer::CONFIG_FIELD_BATCHES_COUNT,     "batches_count"     },
+    { SpectralViewer::CONFIG_FIELD_SAMPLES_PER_BATCH, "samples_per_batch" },
+    { SpectralViewer::CONFIG_FIELD_BATCHES_PERIOD,    "batches_period"    }
+};
+
 //!************************************************************************
 //! Constructor
 //!************************************************************************
@@ -305,6 +317,7 @@ SpectralViewer::SpectralViewer
     mConfig.range = Adxl355Adxl357Common::ACCELERATION_RANGE_DEFAULT;
     mConfig.odrSetting = Adxl355Adxl357Common::ODR_SETTING_3_90625;
     mConfig.nullifyActive = false;
+    mConfig.nullifySamples = NULLIFY_SAMPLES_DEFAULT;
     mConfig.samplesCount = 0;
 }
 
@@ -1847,17 +1860,6 @@ uint16_t SpectralViewer::getDaqDelayUs()
             std::string currentLine;
             size_t currentLineIndex = 0;
 
-            std::vector<std::string> configFieldsName =
-            {
-                "type",
-                "range",
-                "odr",
-                "nullify",
-                "batches_count",
-                "samples_per_batch",
-                "batches_period"
-            };
-
             while( std::getline( inputFile, currentLine ) )
             {
                 std::vector<std::string> substringsVec;
@@ -1874,15 +1876,15 @@ uint16_t SpectralViewer::getDaqDelayUs()
                     substringsVec.push_back( currentLine );
                 }
 
-                if( currentLineIndex < configFieldsName.size() )
+                if( currentLineIndex < CONFIG_FIELD_NAMES.size() )
                 {
                     if( 2 == substringsVec.size() )
                     {
-                        if( substringsVec.at( 0 ) == configFieldsName.at( currentLineIndex ) )
+                        if( substringsVec.at( 0 ) == CONFIG_FIELD_NAMES.at( static_cast<ConfigField>( currentLineIndex ) ) )
                         {
                             switch( currentLineIndex )
                             {
-                                case 0:
+                                case CONFIG_FIELD_TYPE:
                                     if( compareIstr( ACCEL_NAME.toStdString(), substringsVec.at( 1 ) ) )
                                     {
                                         mConfig.accelerometerType = ACCEL_NAME;
@@ -1893,7 +1895,7 @@ uint16_t SpectralViewer::getDaqDelayUs()
                                     }
                                     break;
 
-                                case 1:
+                                case CONFIG_FIELD_RANGE:
                                     if( compareIstr( "ADXL355", mConfig.accelerometerType.toStdString() ) )
                                     {
                                         if( compareIstr( "2g", substringsVec.at( 1 ) ) )
@@ -1938,7 +1940,7 @@ uint16_t SpectralViewer::getDaqDelayUs()
                                     }
                                     break;
 
-                                case 2:
+                                case CONFIG_FIELD_ODR:
                                     {
                                         QString qs = QString::fromStdString( substringsVec.at( 1 ) );
                                         double odrHz = qs.toDouble();
@@ -1994,7 +1996,7 @@ uint16_t SpectralViewer::getDaqDelayUs()
                                     }
                                     break;
 
-                                case 3:
+                                case CONFIG_FIELD_NULLIFY:
                                     if( compareIstr( "yes", substringsVec.at( 1 ) ) )
                                     {
                                         mConfig.nullifyActive = true;
@@ -2009,7 +2011,22 @@ uint16_t SpectralViewer::getDaqDelayUs()
                                     }
                                     break;
 
-                                case 4:
+                                case CONFIG_FIELD_NULLIFY_SAMPLES:
+                                    {
+                                        uint16_t nullifySamples = std::stoul( substringsVec.at( 1 ) );
+
+                                        if( nullifySamples >= 1 )
+                                        {
+                                            mConfig.nullifySamples = nullifySamples;
+                                        }
+                                        else
+                                        {
+                                            parseOk = false;
+                                        }
+                                    }
+                                    break;
+
+                                case CONFIG_FIELD_BATCHES_COUNT:
                                     {
                                         uint32_t batchesCount = std::stoul( substringsVec.at( 1 ) );
 
@@ -2024,7 +2041,7 @@ uint16_t SpectralViewer::getDaqDelayUs()
                                     }
                                     break;
 
-                                case 5:
+                                case CONFIG_FIELD_SAMPLES_PER_BATCH:
                                     {
                                         uint32_t samplesCount = std::stoul( substringsVec.at( 1 ) );
 
@@ -2039,7 +2056,7 @@ uint16_t SpectralViewer::getDaqDelayUs()
                                     }
                                     break;
 
-                                case 6:
+                                case CONFIG_FIELD_BATCHES_PERIOD:
                                     {
                                         double batchesPeriod = std::stod( substringsVec.at( 1 ) );
 
@@ -3494,33 +3511,68 @@ bool SpectralViewer::nullifyValuesAccel()
         double xAxisAvg = 0;
         double yAxisAvg = 0;
         double zAxisAvg = 0;
-        const uint8_t SAMPLES_COUNT = 10;
-        bool readOk = true;
+        double sps = mAccelInstance->getOdrFrequency();
+        uint16_t samplesCount = NULLIFY_SAMPLES_DEFAULT;
 
-        for( uint8_t i = 0; i < SAMPLES_COUNT; i++ )
+        if( mConfig.nullifyActive )
         {
-            double xAxisValue = 0;
-            double yAxisValue = 0;
-            double zAxisValue = 0;
-            readOk = mAccelInstance->getAccelerationsOnAllAxes( &xAxisValue, &yAxisValue, &zAxisValue );
+            samplesCount = mConfig.nullifySamples;
+        }
+        else
+        {
+            const uint16_t NULLIFY_SAMPLES_MIN = 10;
+            const double NULLIFY_DURATION = 0.05; // seconds
+            samplesCount = static_cast<uint16_t>( NULLIFY_DURATION * sps );
 
-            if( readOk )
+            if( samplesCount < NULLIFY_SAMPLES_MIN )
             {
-                xAxisAvg += xAxisValue;
-                yAxisAvg += yAxisValue;
-                zAxisAvg += zAxisValue;
-            }
-            else
-            {
-                break;
+                samplesCount = NULLIFY_SAMPLES_MIN;
             }
         }
 
-        if( readOk )
+        statusOk = mAccelInstance->setAxisOffset( Adxl355Adxl357Common::AXIS_X, 0 );
+
+        if( statusOk )
         {
-            xAxisAvg /= SAMPLES_COUNT;
-            yAxisAvg /= SAMPLES_COUNT;
-            zAxisAvg /= SAMPLES_COUNT;
+            mAccelInstance->setAxisOffset( Adxl355Adxl357Common::AXIS_Y, 0 );
+        }
+
+        if( statusOk )
+        {
+            mAccelInstance->setAxisOffset( Adxl355Adxl357Common::AXIS_Z, 0 );
+        }
+
+        if( statusOk )
+        {
+            bool readOk = true;
+
+            for( uint16_t i = 0; i < samplesCount; i++ )
+            {
+                double xAxisValue = 0;
+                double yAxisValue = 0;
+                double zAxisValue = 0;
+                usleep( 1.e6 / sps );
+                readOk = mAccelInstance->getAccelerationsOnAllAxes( &xAxisValue, &yAxisValue, &zAxisValue );
+
+                if( readOk )
+                {
+                    xAxisAvg += xAxisValue;
+                    yAxisAvg += yAxisValue;
+                    zAxisAvg += zAxisValue;
+                }
+                else
+                {
+                    statusOk = false;
+                    break;
+                }
+            }
+        }
+
+        if( statusOk )
+        {
+            xAxisAvg /= samplesCount;
+            yAxisAvg /= samplesCount;
+            zAxisAvg /= samplesCount;
 
             statusOk = mAccelInstance->setAxisOffset( Adxl355Adxl357Common::AXIS_X, xAxisAvg );
 
@@ -3657,25 +3709,7 @@ void SpectralViewer::readTemperature()
             double accelYms2 = this->mVibrationHndlInstance->convertAccelG2Ms2( aYaccel );
             double accelZms2 = this->mVibrationHndlInstance->convertAccelG2Ms2( aZaccel );
 
-            double odrHz = mAccelInstance->getOdrFrequency();
-            double timeStampMs = 1000.0 * ( mConfig.samplesCount - mDumpRemainingSamples ) / odrHz;
-            QString qs;
-
-            if( 4000 == odrHz )
-            {
-                qs += QString::number( timeStampMs, 'f', 2 );
-            }
-            else if( 2000 == odrHz )
-            {
-                qs += QString::number( timeStampMs, 'f', 1 );
-            }
-            else
-            {
-                qs += QString::number( timeStampMs, 'f', 0 );
-            }
-
-            qs += ",";
-            qs += QString::number( accelXms2, 'f', 10 );
+            QString qs = QString::number( accelXms2, 'f', 10 );
             qs += ",";
             qs += QString::number( accelYms2, 'f', 10 );
             qs += ",";
@@ -3928,7 +3962,7 @@ void SpectralViewer::runConfiguration()
 
     if( mDumpCsvFile.is_open() )
     {
-        mDumpCsvFile << "timestamp,accX,accY,accZ\n";
+        mDumpCsvFile << "accX,accY,accZ\n";
     }
 
     mIsConfigSetupRunning = true;
@@ -3966,6 +4000,7 @@ void SpectralViewer::stopConfiguration()
     mConfig.batchesCount = 0;
     mConfig.samplesCount = 0;
     mConfig.batchesPeriod = 0;
+    mConfig.nullifyActive = false;
 
     mMainUi->actionAccelerometer->setEnabled( true );
 

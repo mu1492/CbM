@@ -294,6 +294,7 @@ Plot3d::Plot3dType Plot3d::getPlot3dType() const
 {
     mVertAxisType = AXIS_TYPE_LINEAR;
     updateMenuVert();
+    mPlot3dCanvas.wipeAllData();
     mPlot3dCanvas.update();
 }
 
@@ -307,6 +308,7 @@ Plot3d::Plot3dType Plot3d::getPlot3dType() const
 {
     mVertAxisType = AXIS_TYPE_LOG;
     updateMenuVert();
+    mPlot3dCanvas.wipeAllData();
     mPlot3dCanvas.update();
 }
 
@@ -320,6 +322,7 @@ Plot3d::Plot3dType Plot3d::getPlot3dType() const
 {
     mVertAxisType = AXIS_TYPE_DB;
     updateMenuVert();
+    mPlot3dCanvas.wipeAllData();
     mPlot3dCanvas.update();
 }
 
