@@ -98,7 +98,16 @@ class Plot3dCanvas : public QOpenGLWidget, protected QOpenGLFunctions
 
         static const uint8_t MESH_COLORS_NR = sizeof( MESH_COLORS ) / ( sizeof( MESH_COLORS[0] ) );   //!< number of mesh colors
 
-        static const uint8_t REFRESH_MS = 100;  //!< refresh period [ms]
+        static const uint8_t REFRESH_MS = 20;       //!< refresh period [ms]
+
+        static const uint16_t MESH_X_MIN = 10;      //!< minimum mesh value
+        static const uint16_t MESH_X_MAX = 80;      //!< maximum mesh value
+        static const uint8_t MESH_X_STEP = 10;      //!< step mesh value
+
+        static const uint16_t MESH_Y_MIN = 10;      //!< minimum mesh value
+        static const uint16_t MESH_Y_MAX = 80;      //!< maximum mesh value
+        static const uint8_t MESH_Y_STEP = 10;      //!< step mesh value
+
 
     //************************************************************************
     // functions

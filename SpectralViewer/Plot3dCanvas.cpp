@@ -74,8 +74,8 @@ Plot3dCanvas::Plot3dCanvas
     , mMeshVxs( nullptr )
     , mMeshNs( nullptr )
     , mMeshFill( true )
-    , mMeshDeltaX( 100 )
-    , mMeshDeltaY( 100 )
+    , mMeshDeltaX( MESH_X_MAX )
+    , mMeshDeltaY( MESH_Y_MAX )
     // rotation
     , mRotAngleDeg( 0 )
     , mRotMouseButton( Qt::LeftButton )
@@ -1267,7 +1267,9 @@ void Plot3dCanvas::paintGL()
 
         if( mMeshList )
         {
-            glCallList( mMeshList );
+            glPushMatrix();
+                glCallList( mMeshList );
+            glPopMatrix();
         }
 
         glDisable( GL_LIGHTING );
@@ -1275,9 +1277,13 @@ void Plot3dCanvas::paintGL()
 
         if( mColorsList )
         {
-            glCallList( mColorsList );
+            glPushMatrix();
+                glCallList( mColorsList );
+            glPopMatrix();
         }
     glPopMatrix();
+
+    glFlush();
 
     int screenX = 0;
     int screenY = 0;
@@ -1308,8 +1314,6 @@ void Plot3dCanvas::paintGL()
     str = "Light ";
     str += mLightEnabled ? "ON" : "OFF";
     outputScaledText( screenX, screenY, 1, str, Qt::gray );
-
-    glFlush();
 }
 
 
@@ -1620,13 +1624,13 @@ void Plot3dCanvas::updateAdxlSrs()
 //!************************************************************************
 void Plot3dCanvas::updateKeyDown()
 {
-    if( mMeshDeltaX > 10 )
+    if( mMeshDeltaX > MESH_X_MIN )
     {
         cleanupVxsNs();
         cleanupData();
         cleanupDataBuf();
 
-        mMeshDeltaX -= 10;
+        mMeshDeltaX -= MESH_X_STEP;
 
         makeCurrent();
             make3dDataAllocateVxsNs();
@@ -1650,13 +1654,13 @@ void Plot3dCanvas::updateKeyDown()
 //!************************************************************************
 void Plot3dCanvas::updateKeyLeft()
 {
-    if( mMeshDeltaY > 10 )
+    if( mMeshDeltaY > MESH_Y_MIN )
     {
         cleanupVxsNs();
         cleanupData();
         cleanupDataBuf();
 
-        mMeshDeltaY -= 10;
+        mMeshDeltaY -= MESH_Y_STEP;
 
         makeCurrent();
             make3dDataAllocateVxsNs();
@@ -1680,23 +1684,26 @@ void Plot3dCanvas::updateKeyLeft()
 //!************************************************************************
 void Plot3dCanvas::updateKeyRight()
 {    
-    cleanupVxsNs();
-    cleanupData();
-    cleanupDataBuf();
+    if( mMeshDeltaY < MESH_Y_MAX )
+    {
+        cleanupVxsNs();
+        cleanupData();
+        cleanupDataBuf();
 
-    mMeshDeltaY += 10;
+        mMeshDeltaY += MESH_Y_STEP;
 
-    makeCurrent();
-        make3dDataAllocateVxsNs();
-        make3dDataAllocateData();
-        make3dDataAllocateDataBuf();
+        makeCurrent();
+            make3dDataAllocateVxsNs();
+            make3dDataAllocateData();
+            make3dDataAllocateDataBuf();
 
-        make3dDataAssign();
-        make3dDataCompute();
+            make3dDataAssign();
+            make3dDataCompute();
 
-        init3dMeshList();
-        update();
-    doneCurrent();
+            init3dMeshList();
+            update();
+        doneCurrent();
+    }
 }
 
 
@@ -1706,24 +1713,27 @@ void Plot3dCanvas::updateKeyRight()
 //! @returns nothing
 //!************************************************************************
 void Plot3dCanvas::updateKeyUp()
-{    
-    cleanupVxsNs();
-    cleanupData();
-    cleanupDataBuf();
+{
+    if( mMeshDeltaX < MESH_X_MAX )
+    {
+        cleanupVxsNs();
+        cleanupData();
+        cleanupDataBuf();
 
-    mMeshDeltaX += 10;
+        mMeshDeltaX += MESH_X_STEP;
 
-    makeCurrent();
-        make3dDataAllocateVxsNs();
-        make3dDataAllocateData();
-        make3dDataAllocateDataBuf();
+        makeCurrent();
+            make3dDataAllocateVxsNs();
+            make3dDataAllocateData();
+            make3dDataAllocateDataBuf();
 
-        make3dDataAssign();
-        make3dDataCompute();
+            make3dDataAssign();
+            make3dDataCompute();
 
-        init3dMeshList();
-        update();
-    doneCurrent();
+            init3dMeshList();
+            update();
+        doneCurrent();
+    }
 }
 
 

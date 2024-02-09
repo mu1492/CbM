@@ -126,7 +126,7 @@ double Numeric::findLogMaxPwrOf10
 {
     double pwrOf10 = INVALID_MAX_LOG;
 
-    if( aValue > 1.e-6 && aValue < 1.e5 )
+    if( ( aValue > 10 * INVALID_MAX_LOG ) && ( aValue < INVALID_MIN_LOG / 10 ) )
     {
         pwrOf10 = pow( 10.0, 1.0 + floor( log10( aValue ) ) );
     }
@@ -147,7 +147,7 @@ double Numeric::findLogMinPwrOf10
 {
     double pwrOf10 = INVALID_MIN_LOG;
 
-    if( aValue > 1.e-6 && aValue < 1.e5 )
+    if( ( aValue > 10 * INVALID_MAX_LOG ) && ( aValue < INVALID_MIN_LOG / 10 ) )
     {
         pwrOf10 = pow( 10.0, floor( log10( aValue ) ) );
     }
