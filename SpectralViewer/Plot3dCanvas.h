@@ -26,6 +26,8 @@ This file contains the definitions for drawing 3D plots.
 
 #include "VibrationHandler.h"
 
+#include <GL/gl.h>
+
 #include <cstdint>
 
 #include <QFont>
@@ -100,12 +102,12 @@ class Plot3dCanvas : public QOpenGLWidget, protected QOpenGLFunctions
 
         static const uint8_t REFRESH_MS = 20;       //!< refresh period [ms]
 
-        static const uint16_t MESH_X_MIN = 10;      //!< minimum mesh value
-        static const uint16_t MESH_X_MAX = 80;      //!< maximum mesh value
+        static const uint8_t MESH_X_MIN = 10;       //!< minimum mesh value
+        static const uint8_t MESH_X_MAX = 150;      //!< maximum mesh value
         static const uint8_t MESH_X_STEP = 10;      //!< step mesh value
 
-        static const uint16_t MESH_Y_MIN = 10;      //!< minimum mesh value
-        static const uint16_t MESH_Y_MAX = 80;      //!< maximum mesh value
+        static const uint8_t MESH_Y_MIN = 10;       //!< minimum mesh value
+        static const uint8_t MESH_Y_MAX = 150;      //!< maximum mesh value
         static const uint8_t MESH_Y_STEP = 10;      //!< step mesh value
 
 
@@ -221,7 +223,10 @@ class Plot3dCanvas : public QOpenGLWidget, protected QOpenGLFunctions
             int*        aScreenY    //!< screen y
             );
 
-        void init3dMeshList();
+        void init3dMeshList
+            (
+            const bool  aResize     //!< true if resizing
+            );
 
         void initColorsList();
 
@@ -237,7 +242,7 @@ class Plot3dCanvas : public QOpenGLWidget, protected QOpenGLFunctions
             (
             int       aX,           //!< x coordinate
             int       aY,           //!< y coordinate
-            double    aVec[3]       //!< vector
+            float     aVec[3]       //!< vector
             ) const;
 
         void outputScaledText
@@ -248,8 +253,6 @@ class Plot3dCanvas : public QOpenGLWidget, protected QOpenGLFunctions
             const QString   aString,    //!< string
             QColor          aColor      //!< color
             );
-
-        void updateMinFrequencyLog();
 
     private slots:
         void cleanupVxsNs();
@@ -266,43 +269,31 @@ class Plot3dCanvas : public QOpenGLWidget, protected QOpenGLFunctions
         int                 mSizeW;                 //!< horiziontal size of the drawing area
         int                 mSizeH;                 //!< vertical size of the drawing area
 
-        double              mSps;                   //!< sampling rate [Hz]
-        int                 mFftSize;               //!< FFT size
-
-        double              mMaxFreq;               //!< maximum frequency [Hz]
-        double              mMaxFreqLog;            //!< maximum frequency for log scale [Hz]
-        double              mMinFreqLog;            //!< minimum frequency for log scale [Hz]
-
-        double              mMaxQuefrency;          //!< maximum cepstrum quefrency [s]
-
-        double              mBinWidth;              //!< FFT bin width [Hz/bin]
-        double              mTimeGate;              //!< time gate [s]
-
-        double              mMaxVert;               //!< maximum value on vertical axis
-        double              mMinVert;               //!< minimum value on vertical axis
+        float               mMaxVert;               //!< maximum value on vertical axis
+        float               mMinVert;               //!< minimum value on vertical axis
         bool                mHaveVertValues;        //!< true if have vertical axis values
 
-        uint32_t            mColorsList;            //!< colors list
+        GLuint              mColorsList;            //!< colors list
         bool                mLightEnabled;          //!< true if light is enabled
 
-        uint32_t            mMeshList;              //!< mesh list
-        double**            mMeshData;              //!< mesh data
-        double**            mMeshDataBuf;           //!< mesh data buffered
-        double***           mMeshVxs;               //!< mesh vertices
-        double***           mMeshNs;                //!< mesh normals
+        GLuint              mMeshList;              //!< mesh list
+        float**             mMeshData;              //!< mesh data
+        float**             mMeshDataBuf;           //!< mesh data buffered
+        float***            mMeshVxs;               //!< mesh vertices
+        float***            mMeshNs;                //!< mesh normals
         bool                mMeshFill;              //!< true if mesh is filled
-        uint16_t            mMeshDeltaX;            //!< X delta mesh
-        uint16_t            mMeshDeltaY;            //!< Y delta mesh
+        uint8_t             mMeshDeltaX;            //!< X delta mesh
+        uint8_t             mMeshDeltaY;            //!< Y delta mesh
 
-        double              mRotAngleDeg;           //!< rotation angle [degrees]
-        double              mRotAxis[3];            //!< rotation axis
-        double              mRotTransform[4][4];    //!< rotation transform
-        double              mRotLastPosition[3];    //!< rotation last position
+        float               mRotAngleDeg;           //!< rotation angle [degrees]
+        float               mRotAxis[3];            //!< rotation axis
+        float               mRotTransform[4][4];    //!< rotation transform
+        float               mRotLastPosition[3];    //!< rotation last position
         int                 mRotMouseButton;        //!< mouse button for plot rotation
         bool                mRotIsActive;           //!< rotation status
 
-        double              mZmin;                  //!< maximum value on z axis
-        double              mZmax;                  //!< maximum value on z axis
+        float               mZmin;                  //!< maximum value on z axis
+        float               mZmax;                  //!< maximum value on z axis
 
         QTimer*             mRefreshTimer;          //!< refresh timer
 };

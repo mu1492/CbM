@@ -28,7 +28,6 @@ This file contains the sources for drawing 3D plots.
 #include "SrsThread.h"
 
 #include <float.h>
-#include <GL/gl.h>
 
 #include <algorithm>
 #include <cmath>
@@ -52,18 +51,9 @@ Plot3dCanvas::Plot3dCanvas
     // widget size
     , mSizeW( width() )
     , mSizeH( height() )
-    // horizontal axis
-    , mSps( 0 )
-    , mFftSize( 0 )
-    , mMaxFreq( 0 )
-    , mMaxFreqLog( 0 )
-    , mMinFreqLog( 0 )
-    , mMaxQuefrency( 0 )
-    , mBinWidth( 0 )
-    , mTimeGate( 0 )
     // vertical axis
-    , mMaxVert( -DBL_MAX )
-    , mMinVert( DBL_MAX )
+    , mMaxVert( -FLT_MAX )
+    , mMinVert( FLT_MAX )
     , mHaveVertValues( false )
     // GL
     , mColorsList( 0 )
@@ -74,15 +64,15 @@ Plot3dCanvas::Plot3dCanvas
     , mMeshVxs( nullptr )
     , mMeshNs( nullptr )
     , mMeshFill( true )
-    , mMeshDeltaX( MESH_X_MAX )
-    , mMeshDeltaY( MESH_Y_MAX )
+    , mMeshDeltaX( 100 )
+    , mMeshDeltaY( 100 )
     // rotation
     , mRotAngleDeg( 0 )
     , mRotMouseButton( Qt::LeftButton )
     , mRotIsActive( false )
     // ranges
-    , mZmin( DBL_MAX )
-    , mZmax( -DBL_MAX )
+    , mZmin( FLT_MAX )
+    , mZmax( -FLT_MAX )
     // refresh
     , mRefreshTimer( new QTimer( this ) )
 {
@@ -125,7 +115,7 @@ void Plot3dCanvas::cleanupData()
 {
     if( mMeshData )
     {
-        for( uint16_t i = 0; i < mMeshDeltaX; i++ )
+        for( uint8_t i = 0; i < mMeshDeltaX; i++ )
         {
             delete[] mMeshData[i];
         }
@@ -145,7 +135,7 @@ void Plot3dCanvas::cleanupDataBuf()
 {
     if( mMeshDataBuf )
     {
-        for( uint16_t i = 0; i < mMeshDeltaX; i++ )
+        for( uint8_t i = 0; i < mMeshDeltaX; i++ )
         {
             delete[] mMeshDataBuf[i];
         }
@@ -163,8 +153,8 @@ void Plot3dCanvas::cleanupDataBuf()
 //!************************************************************************
 /* slot */ void Plot3dCanvas::cleanupVxsNs()
 {
-    uint16_t i = 0;
-    uint16_t j = 0;
+    uint8_t i = 0;
+    uint8_t j = 0;
 
     if( mMeshVxs )
     {
@@ -286,27 +276,33 @@ void Plot3dCanvas::convertToScreenCoords
 //!
 //! @returns nothing
 //!************************************************************************
-void Plot3dCanvas::init3dMeshList()
+void Plot3dCanvas::init3dMeshList
+    (
+    const bool  aResize     //!< true if resizing
+    )
 {
     if( mMeshVxs && mMeshNs )
     {
-        if( mMeshList )
+        if( aResize )
         {
-            glDeleteLists( mMeshList, 1 );
-        }
+            if( mMeshList )
+            {
+                glDeleteLists( mMeshList, 1 );
+            }
 
-        mMeshList = glGenLists( 1 );
+            mMeshList = glGenLists( 1 );
+        }
 
         if( mMeshList )
         {
             glNewList( mMeshList, GL_COMPILE );
-                for( uint16_t i = 0; i < mMeshDeltaX - 1; i++ )
+                for( uint8_t i = 0; i < mMeshDeltaX - 1; i++ )
                 {
                     glPolygonMode( GL_BACK, GL_LINE );
                     glBegin( GL_TRIANGLE_STRIP );
-                        for( uint16_t j = 0; j < mMeshDeltaY; j++ )
+                        for( uint8_t j = 0; j < mMeshDeltaY; j++ )
                         {
-                            int index = static_cast< int >( MESH_COLORS_NR * ( mMeshVxs[i + 1][j][1] + 0.5 ) );
+                            int index = static_cast<int>( MESH_COLORS_NR * ( mMeshVxs[i + 1][j][1] + 0.5 ) );
 
                             if( index < 0 )
                             {
@@ -318,10 +314,10 @@ void Plot3dCanvas::init3dMeshList()
                             }
 
                             glColor3fv( MESH_COLORS[index] );
-                            glNormal3dv( mMeshNs[i + 1][j] );
-                            glVertex3dv( mMeshVxs[i + 1][j] );
+                            glNormal3fv( mMeshNs[i + 1][j] );
+                            glVertex3fv( mMeshVxs[i + 1][j] );
 
-                            index = static_cast< int >( MESH_COLORS_NR * ( mMeshVxs[i][j][1] + 0.5 ) );
+                            index = static_cast<int>( MESH_COLORS_NR * ( mMeshVxs[i][j][1] + 0.5 ) );
 
                             if( index < 0 )
                             {
@@ -333,8 +329,8 @@ void Plot3dCanvas::init3dMeshList()
                             }
 
                             glColor3fv( MESH_COLORS[index] );
-                            glNormal3dv( mMeshNs[i][j] );
-                            glVertex3dv( mMeshVxs[i][j] );
+                            glNormal3fv( mMeshNs[i][j] );
+                            glVertex3fv( mMeshVxs[i][j] );
                         }
                     glEnd();
                 }
@@ -363,7 +359,7 @@ void Plot3dCanvas::initColorsList()
         glNewList( mColorsList, GL_COMPILE );
             glPushMatrix();
                 glLoadIdentity();
-                glTranslated( 0.0, 0.0, -2.0 );
+                glTranslatef( 0.0, 0.0, -2.0 );
                 glPolygonMode( GL_BACK, GL_FILL );
                 glNormal3f( 0.5, 0.5, 0.5 );
                 const float COLOR_LEGEND_H = 0.5f;
@@ -403,13 +399,13 @@ void Plot3dCanvas::initializeGL()
     cleanupData();
     cleanupDataBuf();
 
-    init3dMeshList();
+    init3dMeshList( true );
 
     initColorsList();
 
     glPushMatrix();
         glLoadIdentity();
-        glGetDoublev( GL_MODELVIEW_MATRIX, reinterpret_cast< double* >( mRotTransform ) );
+        glGetFloatv( GL_MODELVIEW_MATRIX, reinterpret_cast< float* >( mRotTransform ) );
     glPopMatrix();
 }
 
@@ -424,11 +420,11 @@ void Plot3dCanvas::make3dDataAllocateData()
 {
     if( !mMeshData )
     {
-        mMeshData = new double*[mMeshDeltaX];
+        mMeshData = new float*[mMeshDeltaX];
 
-        for( uint16_t i = 0; i < mMeshDeltaX; i++ )
+        for( uint8_t i = 0; i < mMeshDeltaX; i++ )
         {
-            mMeshData[i] = new double[mMeshDeltaY]();
+            mMeshData[i] = new float[mMeshDeltaY]();
         }
     }
 }
@@ -444,11 +440,11 @@ void Plot3dCanvas::make3dDataAllocateDataBuf()
 {
     if( !mMeshDataBuf )
     {
-        mMeshDataBuf = new double*[mMeshDeltaX];
+        mMeshDataBuf = new float*[mMeshDeltaX];
 
-        for( uint16_t i = 0; i < mMeshDeltaX; i++ )
+        for( uint8_t i = 0; i < mMeshDeltaX; i++ )
         {
-            mMeshDataBuf[i] = new double[mMeshDeltaY]();
+            mMeshDataBuf[i] = new float[mMeshDeltaY]();
         }
     }
 }
@@ -462,32 +458,35 @@ void Plot3dCanvas::make3dDataAllocateDataBuf()
 //!************************************************************************
 void Plot3dCanvas::make3dDataAllocateVxsNs()
 {
+    uint8_t i = 0;
+    uint8_t j = 0;
+
     if( !mMeshVxs )
     {
-        mMeshVxs = new double**[mMeshDeltaX];
+        mMeshVxs = new float**[mMeshDeltaX];
 
-        for( uint16_t i = 0; i < mMeshDeltaX; i++ )
+        for( i = 0; i < mMeshDeltaX; i++ )
         {
-            mMeshVxs[i] = new double*[mMeshDeltaY];
+            mMeshVxs[i] = new float*[mMeshDeltaY];
 
-            for( uint16_t j = 0; j < mMeshDeltaY; j++ )
+            for( j = 0; j < mMeshDeltaY; j++ )
             {
-                mMeshVxs[i][j] = new double[3]();
+                mMeshVxs[i][j] = new float[3]();
             }
         }
     }
 
     if( !mMeshNs )
     {
-        mMeshNs = new double**[mMeshDeltaX];
+        mMeshNs = new float**[mMeshDeltaX];
 
-        for( uint16_t i = 0; i < mMeshDeltaX; i++ )
+        for( i = 0; i < mMeshDeltaX; i++ )
         {
-            mMeshNs[i] = new double*[mMeshDeltaY];
+            mMeshNs[i] = new float*[mMeshDeltaY];
 
-            for( uint16_t j = 0; j < mMeshDeltaY; j++ )
+            for( j = 0; j < mMeshDeltaY; j++ )
             {
-                mMeshNs[i][j] = new double[3]();
+                mMeshNs[i][j] = new float[3]();
             }
         }
     }
@@ -506,8 +505,8 @@ void Plot3dCanvas::make3dDataAssign()
     {
         int16_t i = 0;
         int16_t j = 0;
-        mZmin = DBL_MAX;
-        mZmax = -DBL_MAX;
+        mZmin = FLT_MAX;
+        mZmax = -FLT_MAX;
 
         switch( mParentPlot3d.getPlot3dType() )
         {
@@ -538,15 +537,15 @@ void Plot3dCanvas::make3dDataAssign()
                         switch( mParentPlot3d.getAxis() )
                         {
                             case Adxl355Adxl357Common::AXIS_X:
-                                mMeshData[i][j] = accelDataArrays.xArray.at( index );
+                                mMeshData[i][j] = static_cast<float>( accelDataArrays.xArray.at( index ) );
                                 break;
 
                             case Adxl355Adxl357Common::AXIS_Y:
-                                mMeshData[i][j] = accelDataArrays.yArray.at( index );
+                                mMeshData[i][j] = static_cast<float>( accelDataArrays.yArray.at( index ) );
                                 break;
 
                             case Adxl355Adxl357Common::AXIS_Z:
-                                mMeshData[i][j] = accelDataArrays.zArray.at( index );
+                                mMeshData[i][j] = static_cast<float>( accelDataArrays.zArray.at( index ) );
                                 break;
 
                             default:
@@ -592,14 +591,14 @@ void Plot3dCanvas::make3dDataAssign()
                                 index = dataLen - 1;
                             }
 
-                            mMeshData[i][j] = binsVec.at( index ).value / binMaxValue.value;
+                            mMeshData[i][j] = static_cast<float>( binsVec.at( index ).value / binMaxValue.value );
                             mMeshDataBuf[i][j] = mMeshData[i][j];
                         }
                     }
                     else if( Plot3d::AXIS_TYPE_DB == mParentPlot3d.getAxisTypeVert() )
                     {
-                        static double maxForDbScale = -DBL_MAX;
-                        static double minForDbScale = DBL_MAX;
+                        static float maxForDbScale = -FLT_MAX;
+                        static float minForDbScale = FLT_MAX;
 
                         static int32_t maxDb = Numeric::INVALID_MAX_10_DB;
                         static int32_t minDb = Numeric::INVALID_MIN_10_DB;
@@ -608,7 +607,7 @@ void Plot3dCanvas::make3dDataAssign()
 
                         if( binMaxValue.value > maxForDbScale )
                         {
-                            maxForDbScale = binMaxValue.value;
+                            maxForDbScale = static_cast<float>( binMaxValue.value );
                             maxDb = nrInstance->findMagnitudeMaxDbMultipleOf10( maxForDbScale );
 
                             if( Numeric::INVALID_MAX_10_DB != maxDb )
@@ -658,7 +657,7 @@ void Plot3dCanvas::make3dDataAssign()
                                 index = dataLen - 1;
                             }
 
-                            mMeshData[i][j] = 20 * log10( binsVec.at( index ).value );
+                            mMeshData[i][j] = static_cast<float>( 20 * log10( binsVec.at( index ).value ) );
                             mMeshDataBuf[i][j] = mMeshData[i][j];
                         }
                     }
@@ -698,14 +697,14 @@ void Plot3dCanvas::make3dDataAssign()
                                 index = dataLen - 1;
                             }
 
-                            mMeshData[i][j] = psdVec.at( index ).value / psdMaxValue.value;
+                            mMeshData[i][j] = static_cast<float>( psdVec.at( index ).value / psdMaxValue.value );
                             mMeshDataBuf[i][j] = mMeshData[i][j];
                         }
                     }
                     else if( Plot3d::AXIS_TYPE_DB == mParentPlot3d.getAxisTypeVert() )
                     {
-                        static double maxForDbScale = -DBL_MAX;
-                        static double minForDbScale = DBL_MAX;
+                        static float maxForDbScale = -FLT_MAX;
+                        static float minForDbScale = FLT_MAX;
 
                         static int32_t maxDb = Numeric::INVALID_MAX_10_DB;
                         static int32_t minDb = Numeric::INVALID_MIN_10_DB;
@@ -714,7 +713,7 @@ void Plot3dCanvas::make3dDataAssign()
 
                         if( psdMaxValue.value > maxForDbScale )
                         {
-                            maxForDbScale = psdMaxValue.value;
+                            maxForDbScale = static_cast<float>( psdMaxValue.value );
                             maxDb = nrInstance->findPowerMaxDbMultipleOf10( maxForDbScale );
 
                             if( Numeric::INVALID_MAX_10_DB != maxDb )
@@ -764,7 +763,7 @@ void Plot3dCanvas::make3dDataAssign()
                                 index = dataLen - 1;
                             }
 
-                            mMeshData[i][j] = 10 * log10( psdVec.at( index ).value );
+                            mMeshData[i][j] = static_cast<float>( 10 * log10( psdVec.at( index ).value ) );
                             mMeshDataBuf[i][j] = mMeshData[i][j];
                         }
                     }
@@ -782,11 +781,11 @@ void Plot3dCanvas::make3dDataAssign()
 
                     if( Plot3d::AXIS_TYPE_LOG == mParentPlot3d.getAxisTypeVert() )
                     {
-                        static double maxForLogScale = -DBL_MAX;
-                        static double minForLogScale = DBL_MAX;
+                        static float maxForLogScale = -FLT_MAX;
+                        static float minForLogScale = FLT_MAX;
 
-                        static double maxLog = Numeric::INVALID_MAX_LOG;
-                        static double minLog = Numeric::INVALID_MIN_LOG;
+                        static float maxLog = static_cast<float>( Numeric::INVALID_MAX_LOG );
+                        static float minLog = static_cast<float>( Numeric::INVALID_MIN_LOG );
 
                         Numeric* nrInstance = Numeric::getInstance();
 
@@ -852,7 +851,7 @@ void Plot3dCanvas::make3dDataAssign()
                                 index = dataLen - 1;
                             }
 
-                            mMeshData[i][j] = log10( srsVec.at( index ).value / pow( 10.0, mMinVert ) );
+                            mMeshData[i][j] = static_cast<float>( log10( srsVec.at( index ).value / pow( 10.0, mMinVert ) ) );
                             mMeshDataBuf[i][j] = mMeshData[i][j];
                         }
                     }
@@ -870,8 +869,8 @@ void Plot3dCanvas::make3dDataAssign()
 
                     if( Plot3d::AXIS_TYPE_DB == mParentPlot3d.getAxisTypeVert() )
                     {
-                        static double maxForDbScale = -DBL_MAX;
-                        static double minForDbScale = DBL_MAX;
+                        static float maxForDbScale = -FLT_MAX;
+                        static float minForDbScale = FLT_MAX;
 
                         static int32_t maxDb = Numeric::INVALID_MAX_10_DB;
                         static int32_t minDb = Numeric::INVALID_MIN_10_DB;
@@ -880,7 +879,7 @@ void Plot3dCanvas::make3dDataAssign()
 
                         if( cepstrumMaxValue.value > maxForDbScale )
                         {
-                            maxForDbScale = cepstrumMaxValue.value;
+                            maxForDbScale = static_cast<float>( cepstrumMaxValue.value );
                             maxDb = nrInstance->findPowerMaxDbMultipleOf10( maxForDbScale );
 
                             if( Numeric::INVALID_MAX_10_DB != maxDb )
@@ -930,7 +929,7 @@ void Plot3dCanvas::make3dDataAssign()
                                 index = dataLen - 1;
                             }
 
-                            mMeshData[i][j] = 10 * log10( cepstrumVec.at( index ).value );
+                            mMeshData[i][j] = static_cast<float>( 10 * log10( cepstrumVec.at( index ).value ) );
                             mMeshDataBuf[i][j] = mMeshData[i][j];
                         }
                     }
@@ -989,39 +988,39 @@ void Plot3dCanvas::make3dDataCompute()
 {
     if( mMeshVxs && mMeshNs && mMeshData )
     {
-        uint16_t i = 0;
-        uint16_t j = 0;
+        uint8_t i = 0;
+        uint8_t j = 0;
 
-        double*** meshFacetNs = new double**[mMeshDeltaX];
+        float*** meshFacetNs = new float**[mMeshDeltaX];
 
         for( i = 0; i < mMeshDeltaX; i++ )
         {
-            meshFacetNs[i] = new double*[mMeshDeltaY];
+            meshFacetNs[i] = new float*[mMeshDeltaY];
 
             for( j = 0; j < mMeshDeltaY; j++ )
             {
-                meshFacetNs[i][j] = new double[3]();
+                meshFacetNs[i][j] = new float[3]();
             }
         }
 
-        double u[3] = { 0 };
-        double v[3] = { 0 };
-        double n[3] = { 0 };
-        double xProdNorm = 0;
+        float u[3] = { 0 };
+        float v[3] = { 0 };
+        float n[3] = { 0 };
+        float xProdNorm = 0;
 
         for( i = 0; i < mMeshDeltaX - 1; i++ )
         {
             for( j = 0; j < mMeshDeltaY - 1; j++ )
             {
-                mMeshVxs[i][j][0] = static_cast< double >( i ) / static_cast< double >( mMeshDeltaX ) - 0.5;
+                mMeshVxs[i][j][0] = static_cast<float>( i ) / static_cast<float>( mMeshDeltaX ) - 0.5;
                 mMeshVxs[i][j][1] = mMeshData[i][j] / mZmax - 0.5;
-                mMeshVxs[i][j][2] = static_cast< double >( j ) / static_cast< double >( mMeshDeltaY ) - 0.5;
+                mMeshVxs[i][j][2] = static_cast<float>( j ) / static_cast<float>( mMeshDeltaY ) - 0.5;
 
                 mMeshVxs[i][j+1][0] = mMeshVxs[i][j][0];
                 mMeshVxs[i][j+1][1] = mMeshData[i][j + 1] / mZmax - 0.5;
-                mMeshVxs[i][j+1][2] = static_cast< double >( j + 1 ) / static_cast< double >( mMeshDeltaY ) - 0.5;
+                mMeshVxs[i][j+1][2] = static_cast<float>( j + 1 ) / static_cast<float>( mMeshDeltaY ) - 0.5;
 
-                mMeshVxs[i+1][j][0] = static_cast< double >( i + 1 ) / static_cast< double >( mMeshDeltaX ) - 0.5;
+                mMeshVxs[i+1][j][0] = static_cast<float>( i + 1 ) / static_cast<float>( mMeshDeltaX ) - 0.5;
                 mMeshVxs[i+1][j][1] = mMeshData[i + 1][j] / mZmax - 0.5;
                 mMeshVxs[i+1][j][2] = mMeshVxs[i][j][2];
 
@@ -1049,9 +1048,9 @@ void Plot3dCanvas::make3dDataCompute()
             }
         }
 
-        mMeshVxs[i][j][0] = static_cast< double >( i ) / static_cast< double >( mMeshDeltaX ) - 0.5;
+        mMeshVxs[i][j][0] = static_cast<float>( i ) / static_cast<float>( mMeshDeltaX ) - 0.5;
         mMeshVxs[i][j][1] = mMeshData[i][j] / mZmax - 0.5;
-        mMeshVxs[i][j][2] = static_cast< double >( j ) / static_cast< double >( mMeshDeltaY ) - 0.5;
+        mMeshVxs[i][j][2] = static_cast<float>( j ) / static_cast<float>( mMeshDeltaY ) - 0.5;
 
         meshFacetNs[i][j][0] = n[0];
         meshFacetNs[i][j][1] = n[1];
@@ -1149,12 +1148,12 @@ void Plot3dCanvas::mouseMoveEvent
 {
     if( mRotIsActive )
     {
-        double crtPosition[3] = { 0 };
+        float crtPosition[3] = { 0 };
         rotatePt2Vec( aEvent->x(), aEvent->y(), crtPosition );
 
-        double dx = crtPosition[0] - mRotLastPosition[0];
-        double dy = crtPosition[1] - mRotLastPosition[1];
-        double dz = crtPosition[2] - mRotLastPosition[2];
+        float dx = crtPosition[0] - mRotLastPosition[0];
+        float dy = crtPosition[1] - mRotLastPosition[1];
+        float dz = crtPosition[2] - mRotLastPosition[2];
 
         mRotAngleDeg = 90.0 * sqrt( dx * dx + dy * dy + dz * dz );
 
@@ -1240,50 +1239,8 @@ void Plot3dCanvas::paintGL()
 {
     glClearColor( 0.0, 0.0, 0.0, 0.0 );
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-
-    glPushMatrix();
-        glPushMatrix();
-            glLoadIdentity();
-            glRotated( mRotAngleDeg, mRotAxis[0], mRotAxis[1], mRotAxis[2] );
-            glMultMatrixd( reinterpret_cast< double* >( mRotTransform ) );
-            glGetDoublev( GL_MODELVIEW_MATRIX, reinterpret_cast< double* >( mRotTransform ) );
-        glPopMatrix();
-
-        glMultMatrixd( reinterpret_cast< double* >( mRotTransform ) );
-
-        if( mLightEnabled )
-        {
-            glEnable( GL_LIGHTING );
-            glEnable( GL_LIGHT0 );
-        }
-        else
-        {
-            glDisable( GL_LIGHTING );
-        }
-
-        glPolygonMode( GL_FRONT_AND_BACK, mMeshFill ? GL_FILL : GL_LINE );
-        glEnable( GL_COLOR_MATERIAL );
-        glEnable( GL_DEPTH_TEST );
-
-        if( mMeshList )
-        {
-            glPushMatrix();
-                glCallList( mMeshList );
-            glPopMatrix();
-        }
-
-        glDisable( GL_LIGHTING );
-        glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
-
-        if( mColorsList )
-        {
-            glPushMatrix();
-                glCallList( mColorsList );
-            glPopMatrix();
-        }
-    glPopMatrix();
-
-    glFlush();
+    glDisable( GL_LIGHTING );
+    glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
 
     int screenX = 0;
     int screenY = 0;
@@ -1314,6 +1271,48 @@ void Plot3dCanvas::paintGL()
     str = "Light ";
     str += mLightEnabled ? "ON" : "OFF";
     outputScaledText( screenX, screenY, 1, str, Qt::gray );
+
+    glPushMatrix();
+        if( mColorsList )
+        {
+            glPushMatrix();
+                glDisable( GL_LIGHTING );
+                glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+                glCallList( mColorsList );
+            glPopMatrix();
+        }
+
+        glPushMatrix();
+            glLoadIdentity();
+            glRotatef( mRotAngleDeg, mRotAxis[0], mRotAxis[1], mRotAxis[2] );
+            glMultMatrixf( reinterpret_cast< float* >( mRotTransform ) );
+            glGetFloatv( GL_MODELVIEW_MATRIX, reinterpret_cast< float* >( mRotTransform ) );
+        glPopMatrix();
+
+        glMultMatrixf( reinterpret_cast< float* >( mRotTransform ) );
+
+        if( mMeshList )
+        {
+            if( mLightEnabled )
+            {
+                glEnable( GL_LIGHTING );
+                glEnable( GL_LIGHT0 );
+            }
+            else
+            {
+                glDisable( GL_LIGHTING );
+            }
+
+            glPushMatrix();
+                glPolygonMode( GL_FRONT_AND_BACK, mMeshFill ? GL_FILL : GL_LINE );
+                glEnable( GL_COLOR_MATERIAL );
+                glEnable( GL_DEPTH_TEST );
+                glCallList( mMeshList );
+            glPopMatrix();
+        }
+    glPopMatrix();    
+
+    glFinish();
 }
 
 
@@ -1333,7 +1332,7 @@ void Plot3dCanvas::paintGL()
             make3dDataAssign();
             make3dDataCompute();
 
-            init3dMeshList();
+            init3dMeshList( false );
             update();
         doneCurrent();
     }
@@ -1349,7 +1348,7 @@ void Plot3dCanvas::resetView()
 {
     glPushMatrix();
         glLoadIdentity();
-        glGetDoublev( GL_MODELVIEW_MATRIX, ( double* )mRotTransform );
+        glGetFloatv( GL_MODELVIEW_MATRIX, reinterpret_cast< float* >( mRotTransform ) );
     glPopMatrix();
 }
 
@@ -1376,7 +1375,7 @@ void Plot3dCanvas::resizeGL
     glMatrixMode( GL_MODELVIEW );
 
     glLoadIdentity();
-    glTranslated( 0.0, 0.0, -2.0 );
+    glTranslatef( 0.0, 0.0, -2.0 );
     GLfloat lightPosition[] = { 1.0, 1.0, 1.0, 0.0 };
     glLightfv( GL_LIGHT0, GL_POSITION, lightPosition );
 
@@ -1393,17 +1392,17 @@ void Plot3dCanvas::rotatePt2Vec
     (
     int       aX,           //!< x coordinate
     int       aY,           //!< y coordinate
-    double    aVec[3]       //!< vector
+    float     aVec[3]       //!< vector
     ) const
 {
     if( mSizeW && mSizeH )
     {
         aVec[0] = ( 2.0 * aX - mSizeW ) / mSizeW;
         aVec[1] = ( mSizeH - 2.0 * aY ) / mSizeH;
-        double dist = sqrt( aVec[0] * aVec[0] + aVec[1] * aVec[1] );
+        float dist = sqrt( aVec[0] * aVec[0] + aVec[1] * aVec[1] );
         aVec[2] = cos( ( Numeric::PI / 2.0 ) * ( ( dist < 1.0 ) ? dist : 1.0 ) );
 
-        double a = 1.0 / sqrt( aVec[0] * aVec[0] + aVec[1] * aVec[1] + aVec[2] * aVec[2] );
+        float a = 1.0 / sqrt( aVec[0] * aVec[0] + aVec[1] * aVec[1] + aVec[2] * aVec[2] );
         aVec[0] *= a;
         aVec[1] *= a;
         aVec[2] *= a;
@@ -1424,15 +1423,6 @@ void Plot3dCanvas::setParameters
 {
     if( aSps > 0 && aFftSize > 0 )
     {
-        mSps = aSps;
-        mFftSize = aFftSize;
-        mMaxFreq = mSps / 2.0;
-        mBinWidth = mSps / mFftSize;
-        mTimeGate = 1.0 / mBinWidth;
-        mMaxFreqLog = pow( 10.0, static_cast<double>( ceil( log10( mMaxFreq ) ) ) );
-        mMaxQuefrency = mTimeGate;
-        updateMinFrequencyLog();
-
         makeCurrent();
             make3dDataAllocateData();
             make3dDataAllocateDataBuf();
@@ -1440,7 +1430,7 @@ void Plot3dCanvas::setParameters
             make3dDataAssign();
             make3dDataCompute();
 
-            init3dMeshList();
+            init3dMeshList( true );
 
             update();
         doneCurrent();
@@ -1458,7 +1448,7 @@ void Plot3dCanvas::setVerticalMaxTransient
     const double aVerticalMax           //!< max value for vertical axis [g]
     )
 {
-    mMaxVert = fabs( aVerticalMax );
+    mMaxVert = static_cast<float>( fabs( aVerticalMax ) );
     mMinVert = -mMaxVert;
 
     if( Plot3d::PLOT_3D_TYPE_TRANSIENT == mParentPlot3d.getPlot3dType() )
@@ -1472,7 +1462,7 @@ void Plot3dCanvas::setVerticalMaxTransient
             make3dDataAssign();
             make3dDataCompute();
 
-            init3dMeshList();
+            init3dMeshList( true );
 
             update();
         doneCurrent();
@@ -1640,7 +1630,7 @@ void Plot3dCanvas::updateKeyDown()
             make3dDataAssign();
             make3dDataCompute();
 
-            init3dMeshList();
+            init3dMeshList( true );
             update();
         doneCurrent();
     }
@@ -1670,7 +1660,7 @@ void Plot3dCanvas::updateKeyLeft()
             make3dDataAssign();
             make3dDataCompute();
 
-            init3dMeshList();
+            init3dMeshList( true );
             update();
         doneCurrent();
     }
@@ -1700,7 +1690,7 @@ void Plot3dCanvas::updateKeyRight()
             make3dDataAssign();
             make3dDataCompute();
 
-            init3dMeshList();
+            init3dMeshList( true );
             update();
         doneCurrent();
     }
@@ -1730,25 +1720,9 @@ void Plot3dCanvas::updateKeyUp()
             make3dDataAssign();
             make3dDataCompute();
 
-            init3dMeshList();
+            init3dMeshList( true );
             update();
         doneCurrent();
-    }
-}
-
-
-//!************************************************************************
-//! Update the minimum frequency for logarithmic horizontal axis
-//!
-//! @returns nothing
-//!************************************************************************
-void Plot3dCanvas::updateMinFrequencyLog()
-{
-    mMinFreqLog = 0;
-
-    if( Plot3d::PLOT_3D_TYPE_SRS == mParentPlot3d.getPlot3dType() )
-    {
-        mMinFreqLog = SrsThread::NATURAL_FREQ_MIN;
     }
 }
 
@@ -1760,8 +1734,8 @@ void Plot3dCanvas::updateMinFrequencyLog()
 //!************************************************************************
 void Plot3dCanvas::wipeAllData()
 {
-    uint16_t i = 0;
-    uint16_t j = 0;
+    uint8_t i = 0;
+    uint8_t j = 0;
 
     if( mMeshData )
     {
