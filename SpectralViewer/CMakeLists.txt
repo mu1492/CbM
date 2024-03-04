@@ -201,6 +201,15 @@ endif()
 
 if(USE_CUDA)
     list(APPEND PRJ_SOURCES_LIST
+        TrtCbmOnnx.cpp
+        TrtCbmOnnx.h
+        TrtEngineBuffer.cpp
+        TrtEngineBuffer.h
+        TrtGenericBuffer.cpp
+        TrtGenericBuffer.h
+        TrtLogger.cpp
+        TrtLogger.h
+        TrtSettings.ui
         cuMl.cu
         cuMl.hpp
         )
@@ -241,14 +250,12 @@ else()
                            -Xcompiler
                            >)
 
-    set(CUDA_LIBRARIES "libcuda.so")
+    set(CUDA_LIBRARIES "libcuda.so" "libcudart.so" "libcufft.so" "libcudla.so" "libnvinfer.so" "libnvonnxparser.so")
     target_link_libraries(SpectralViewerCuda PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
                                                      Qt${QT_VERSION_MAJOR}::OpenGL
                                                      Qt${QT_VERSION_MAJOR}::OpenGLExtensions
                                                      ${OPENGL_LIBRARIES}
-                                                     ${CUDA_LIBRARIES}
-                                                     -lcufft
-                                                     -lcudla)
+                                                     ${CUDA_LIBRARIES})
 endif()
 
 if(QT_VERSION_MAJOR EQUAL 6)

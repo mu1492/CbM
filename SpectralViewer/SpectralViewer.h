@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////////
-// Copyright (C) 2023-2024 Mihai Ursu                                                 //
+// Copyright (C) 2023-2024 Mihai Ursu                                            //
 //                                                                               //
 // This program is free software; you can redistribute it and/or modify          //
 // it under the terms of the GNU General Public License as published by          //
@@ -44,13 +44,17 @@ This file contains the definitions for the mechanical vibrations spectral viewer
 #if BUILD_CUDA
     #include <cuda.h>
     #include "helper_cuda_drvapi.h"
+    #include "TrtCbmOnnx.h"
+    #include "./ui_TrtSettings.h"
 #endif
 
 #include <fstream>
 #include <string>
 
+#include <QCloseEvent>
 #include <QDialog>
 #include <QMainWindow>
+#include <QMutex>
 #include <QString>
 #include <QTimer>
 
@@ -98,6 +102,42 @@ class SpectralViewer : public QMainWindow
             Version     version;            //!< CUDA toolkit version
             Version     cc;                 //!< CUDA Compute Capability
         }CudaInfo;
+
+        typedef struct
+        {
+            std::vector<float>  xData;      //!< Inference feed data - X axis
+            std::vector<float>  yData;      //!< Inference feed data - Y axis
+            std::vector<float>  zData;      //!< Inference feed data - Z axis
+        }InferFeedData;
+
+        typedef struct
+        {
+            float       xAxis;              //!< TensorRT inference calculated loss - X axis
+            float       yAxis;              //!< TensorRT inference calculated loss - Y axis
+            float       zAxis;              //!< TensorRT inference calculated loss - Z axis
+        }InferLossCalculated;
+
+        typedef struct
+        {
+            float       xAxis;              //!< TensorRT inference loss threshold - X axis
+            float       yAxis;              //!< TensorRT inference loss threshold - Y axis
+            float       zAxis;              //!< TensorRT inference loss threshold - Z axis
+        }InferLossThreshold;
+
+        typedef struct
+        {
+            TrtCbmOnnx                          cbmOnnx;            //!< ONNX-based TensorRT object for CbM
+            QThread*                            engineBuildThread;  //!< thread for building the engine
+            bool                                engineTried;        //!< true if already tried building the DL engine
+            bool                                engineBuilt;        //!< true if the DL engine can be built
+            FrequencyAnalysis::FftSizeOption    fftSize;            //!< FFT size for data feed
+            int32_t                             feedBufferSize;     //!< buffer size for feed data
+            InferFeedData                       feedData;           //!< triaxial feed data
+            bool                                isEnabled;          //!< true if the engine is enabled
+            int                                 inferPeriod;        //!< inference period [s]
+            InferLossCalculated                 lossCalc;           //!< triaxial inference calculated loss
+            InferLossThreshold                  lossThd;            //!< triaxial inference loss thresholds
+        }TensorRt;
 #endif
 
         typedef enum : uint8_t
@@ -181,6 +221,12 @@ class SpectralViewer : public QMainWindow
 
         ~SpectralViewer();
 
+    protected:
+        void closeEvent
+            (
+            QCloseEvent* aEvent         //!< close event
+            );
+
     private:
         bool changeAccelOdr
             (
@@ -230,6 +276,10 @@ class SpectralViewer : public QMainWindow
 
         void initPlot3dOptionsControls();
 
+#if BUILD_CUDA
+        void initTrtSettingsDialogControls();
+#endif
+
         void initVibMonDialogControls();
 
         bool nullifyValuesAccel();
@@ -249,6 +299,10 @@ class SpectralViewer : public QMainWindow
         void updatePlotsFrequencyParams();
 
         void updatePlotsVerticalMaxTransient();
+
+#if BUILD_CUDA
+        void updateTrtSettingsDialogControls();
+#endif
 
     private slots:
         void handleAbout();
@@ -450,6 +504,25 @@ class SpectralViewer : public QMainWindow
             bool aEnabled   //!< enabled status
             );
 
+#if BUILD_CUDA
+        void handleChangedTrtInferPeriod
+            (
+            int aValue      //!< index
+            );
+
+        void handleChangedTrtInferXloss
+            (
+            double aValue   //!< value
+            );
+        void handleChangedTrtInferYloss
+            (
+            double aValue   //!< value
+            );
+        void handleChangedTrtInferZloss
+            (
+            double aValue   //!< value
+            );
+#endif
 
         void handleChangedVibMonXaxisItem
             (
@@ -547,6 +620,10 @@ class SpectralViewer : public QMainWindow
 
         void handleMenuSelectPlots3D();
 
+#if BUILD_CUDA
+        void handleMenuTrtSettings();
+#endif
+
         void handleMenuVibMon();
 
         void handleNullifyValuesAccel();
@@ -560,6 +637,10 @@ class SpectralViewer : public QMainWindow
         void handleRestoreDefaultsVibMonSettings();
 
         void handleSaveVibMonSettings();
+
+#if BUILD_CUDA
+        void handleTrtBuildDone();
+#endif
 
         void receiveClosedPlot2d
             (
@@ -580,6 +661,13 @@ class SpectralViewer : public QMainWindow
             double aZaccel      //!< acceleration on Z axis
             );
 
+#if BUILD_CUDA
+        void receiveNewFft
+            (
+            int aAxis           //!< axis
+            );
+#endif
+
         void receiveNewSps
             (
             int aSps            //!< SPS
@@ -593,6 +681,10 @@ class SpectralViewer : public QMainWindow
         void runBatches();
 
         void startBatch();
+
+#if BUILD_CUDA
+        void startTrtInference();
+#endif
 
         void updateDateTime();
 
@@ -671,6 +763,16 @@ class SpectralViewer : public QMainWindow
 #if BUILD_CUDA
         CudaInfo                        mCudaInfo;              //!< relevant info about CUDA platform in use
         bool                            mHaveCudaRequirements;  //!< true if detected CUDA provides expected support
+
+        TensorRt                        mTrt;                   //!< Deep Learning TensorRT object
+        QTimer*                         mTrtTimer;              //!< TensorRT timer
+        QMutex                          mTrtMutex;
+
+        QMenu*                          mTrtMenuDl;             //!< Deep Learning menu entry
+        QAction*                        mTrtActionSettings;     //!< DL settings submenu
+
+        Ui::TrtSettingsDialog*          mTrtSettingsUi;         //!< TensorRT settings UI
+        QDialog                         mTrtSettingsDlg;        //!< TensorRT settings dialog
 #endif
 
         QLabel                          mSpsStatusbarLabel;     //!< SPS label on status bar

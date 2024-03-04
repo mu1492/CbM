@@ -156,7 +156,7 @@ void VibrationHandler::calculateSpectrumX()
 
             if( !haveZeros )
             {
-                mCepstrumInvFftThreadX.compute( logPwrVec, FrequencyAnalysis::FFT_SENSE_INVERSE, 0, false );
+                mCepstrumInvFftThreadX.compute( logPwrVec, FrequencyAnalysis::FFT_SENSE_INVERSE, 0, true );
             }
 
             mVibRmsSpeeds.xRmsSpeed = 0;
@@ -242,7 +242,7 @@ void VibrationHandler::calculateSpectrumY()
 
             if( !haveZeros )
             {
-                mCepstrumInvFftThreadY.compute( logPwrVec, FrequencyAnalysis::FFT_SENSE_INVERSE, 0, false );
+                mCepstrumInvFftThreadY.compute( logPwrVec, FrequencyAnalysis::FFT_SENSE_INVERSE, 0, true );
             }
 
             mVibRmsSpeeds.yRmsSpeed = 0;
@@ -328,7 +328,7 @@ void VibrationHandler::calculateSpectrumZ()
 
             if( !haveZeros )
             {
-                mCepstrumInvFftThreadZ.compute( logPwrVec, FrequencyAnalysis::FFT_SENSE_INVERSE, 0, false );
+                mCepstrumInvFftThreadZ.compute( logPwrVec, FrequencyAnalysis::FFT_SENSE_INVERSE, 0, true );
             }
 
             mVibRmsSpeeds.zRmsSpeed = 0;
@@ -608,9 +608,9 @@ VibrationHandler::VibrationMonitoringSettingsTriaxial& VibrationHandler::getTria
                     }
                 }
 
-                mFftThreadX.compute( mFFtValues.xFft, FrequencyAnalysis::FFT_SENSE_DIRECT, 0, false );
-                mFftThreadY.compute( mFFtValues.yFft, FrequencyAnalysis::FFT_SENSE_DIRECT, 0, false );
-                mFftThreadZ.compute( mFFtValues.zFft, FrequencyAnalysis::FFT_SENSE_DIRECT, 0, false );
+                mFftThreadX.compute( mFFtValues.xFft, FrequencyAnalysis::FFT_SENSE_DIRECT, 0, true );
+                mFftThreadY.compute( mFFtValues.yFft, FrequencyAnalysis::FFT_SENSE_DIRECT, 0, true );
+                mFftThreadZ.compute( mFFtValues.zFft, FrequencyAnalysis::FFT_SENSE_DIRECT, 0, true );
 
                 if( faInstance->getSrsIsRunning() )
                 {

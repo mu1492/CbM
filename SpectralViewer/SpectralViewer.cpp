@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////////
-// Copyright (C) 2023-2024 Mihai Ursu                                                 //
+// Copyright (C) 2023-2024 Mihai Ursu                                            //
 //                                                                               //
 // This program is free software; you can redistribute it and/or modify          //
 // it under the terms of the GNU General Public License as published by          //
@@ -78,6 +78,9 @@ SpectralViewer::SpectralViewer
     , mVibrationMonitoringSettingsUi( new Ui::VibrationMonitoringSettingsDialog )
     , mPlot2dOptionsUi( new Ui::Plot2dOptionsDialog )
     , mPlot3dOptionsUi( new Ui::Plot3dOptionsDialog )
+#if BUILD_CUDA
+    , mTrtSettingsUi( new Ui::TrtSettingsDialog )
+#endif
     , mAboutUi( new Ui::AboutDialog )
     // I2C resources
     , mI2cBusChannel( 0 )
@@ -90,6 +93,7 @@ SpectralViewer::SpectralViewer
     // CUDA
 #if BUILD_CUDA
     , mHaveCudaRequirements( true )
+    , mTrtTimer( new QTimer( this ) )
 #endif
     // paint&draw
     , mCbmCanvas( nullptr )
@@ -136,13 +140,23 @@ SpectralViewer::SpectralViewer
     , mDumpRemainingBatches( 0 )
     , mDumpRemainingSamples( 0 )
 {
-    mMainUi->setupUi( this );    
+    mMainUi->setupUi( this );
+
+    //****************************************
+    // Dialog windows setup
+    //****************************************
     mAccelerometerUi->setupUi( &mAccelerometerDlg );
     mFrequencyAnalysisUi->setupUi( &mFrequencyAnalysisDlg );
     mVibrationMonitoringSettingsUi->setupUi( &mVibrationMonitoringSettingsDlg );    
     mPlot2dOptionsUi->setupUi( &mPlot2dOptionsDlg );
     mPlot3dOptionsUi->setupUi( &mPlot3dOptionsDlg );
+#if BUILD_CUDA
+    mTrtSettingsUi->setupUi( &mTrtSettingsDlg );
+#endif
 
+    //****************************************
+    // NVIDIA CUDA
+    //****************************************
 #if BUILD_CUDA
     checkCudaRequirements();
 #endif
@@ -319,6 +333,51 @@ SpectralViewer::SpectralViewer
     mConfig.nullifyActive = false;
     mConfig.nullifySamples = NULLIFY_SAMPLES_DEFAULT;
     mConfig.samplesCount = 0;
+
+#if BUILD_CUDA
+    //****************************************
+    // Deep Learning
+    //****************************************
+    if( mHaveCudaRequirements )
+    {
+        mTrt.engineBuildThread = new QThread();
+
+        mTrt.engineTried = false;
+        mTrt.engineBuilt = false;
+
+        mTrt.fftSize = FrequencyAnalysis::FFT_SIZE_256;
+        mTrt.feedBufferSize = TrtCbmOnnx::INPUT_BUFFER_SIZE;
+        mTrt.isEnabled = false;
+
+        mTrt.inferPeriod = 10;
+
+        memset( &mTrt.lossCalc, 0, sizeof( mTrt.lossCalc ) );
+
+        mTrt.lossThd.xAxis = 8.5;
+        mTrt.lossThd.yAxis = 8.5;
+        mTrt.lossThd.zAxis = 8.5;
+
+        mTrt.cbmOnnx.moveToThread( mTrt.engineBuildThread );
+        connect( mTrt.engineBuildThread, SIGNAL( started() ), &mTrt.cbmOnnx, SLOT( startBuild() ) );
+        connect( &mTrt.cbmOnnx, SIGNAL( buildFinished() ), this, SLOT( handleTrtBuildDone() ) );
+        mTrt.engineBuildThread->start();
+
+        mTrtMenuDl = new QMenu( "&Deep Learning" );
+        mMainUi->menubar->insertMenu( mMainUi->menuHelp->menuAction(), mTrtMenuDl );
+
+        mTrtActionSettings = new QAction( "&Settings" );
+        mTrtMenuDl->addAction( mTrtActionSettings );
+
+        connect( mTrtActionSettings, &QAction::triggered, this, &SpectralViewer::handleMenuTrtSettings );
+        initTrtSettingsDialogControls();
+
+        // disable DL menu entry
+        mTrtMenuDl->setEnabled( false );
+        // disable Exit submenu while DL TensorRT engine is being built
+        mMainUi->actionExit->setEnabled( false );
+        mMainUi->actionExit->setText( "*** building TensorRT engine ***" );
+    }
+#endif
 }
 
 
@@ -346,6 +405,7 @@ SpectralViewer::~SpectralViewer()
     }
 
 #if BUILD_CUDA
+    mTrtMutex.unlock();
     cudaDeviceReset();
 #endif
 
@@ -480,19 +540,19 @@ bool SpectralViewer::changeAccelRange
             checkCudaErrors( cuDeviceGetAttribute( &ccMajor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, dev ) );
             checkCudaErrors( cuDeviceGetAttribute( &ccMinor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, dev ) );
 
+            const int MAX_NAME_LEN = 256;
+            char deviceName[MAX_NAME_LEN] = "";
+            checkCudaErrors( cuDeviceGetName( deviceName, MAX_NAME_LEN, dev ) );
+
+            mCudaInfo.devId = dev;
+            mCudaInfo.cc.major = ccMajor;
+            mCudaInfo.cc.minor = ccMinor;
+            mCudaInfo.name = deviceName;
+
             if( ( CUDA_CC_MIN.major < ccMajor )
              || ( CUDA_CC_MIN.major == ccMajor && CUDA_CC_MIN.minor <= ccMinor ) )
             {
                 ccOk = true;
-                const int MAX_NAME_LEN = 256;
-                char deviceName[MAX_NAME_LEN] = "";
-                checkCudaErrors( cuDeviceGetName( deviceName, MAX_NAME_LEN, dev ) );
-
-                mCudaInfo.devId = dev;
-                mCudaInfo.cc.major = ccMajor;
-                mCudaInfo.cc.minor = ccMinor;
-                mCudaInfo.name = deviceName;
-
                 break;
             }
         }
@@ -519,7 +579,7 @@ bool SpectralViewer::changeAccelRange
                 QString cudaCcRequiredStr = QString::number( CUDA_CC_MIN.major ) + "." + QString::number( CUDA_CC_MIN.minor );
                 QString cudaCcFoundStr = QString::number( mCudaInfo.cc.major) + "." + QString::number( mCudaInfo.cc.minor );
 
-                msg = "Minimum CUDA requirements were not found on this platform:";
+                msg = "Minimum CUDA requirements were not found on this platform (" + mCudaInfo.name + "):";
                 msg += "\n - minimum CUDA required is " + cudaVerRequiredStr + ", found is " + cudaVerFoundStr;
                 msg += "\n - minimum CC required is " + cudaCcRequiredStr + ", found is " + cudaCcFoundStr;
                 msg += "\n\nCUDA will not be used and computations will run in the CPU only.";
@@ -529,6 +589,39 @@ bool SpectralViewer::changeAccelRange
         }
     }
 #endif
+
+
+//!************************************************************************
+//! Close event handler
+//!
+//! @returns nothing
+//!************************************************************************
+void SpectralViewer::closeEvent
+    (
+    QCloseEvent*    aEvent      //!< close event
+    )
+{
+#if BUILD_CUDA
+    if( mHaveCudaRequirements && !mTrt.engineTried )
+    {
+        aEvent->ignore();
+        QMessageBox::information( this, APP_NAME,
+                                  "Building the Deep Learning TensorRT engine.\nCannot exit now.",
+                                  QMessageBox::Ok );
+    }
+    else
+    {
+        if( mTrtSettingsDlg.isVisible() )
+        {
+            mTrtSettingsDlg.hide();
+        }
+
+        aEvent->accept();
+    }
+#else
+    aEvent->accept();
+#endif
+}
 
 
 //!************************************************************************
@@ -753,6 +846,27 @@ uint16_t SpectralViewer::getDaqDelayUs()
 
         mFrequencyAnalysisUi->BinWidthValue->setText( QString::number( mFreqAnalysisInstance->getFftBinWidth() ) + " Hz/bin" );
         mFrequencyAnalysisUi->TimeGateValue->setText( convertSeconds2String( mFreqAnalysisInstance->getFftTimeGate() ) );
+
+#if BUILD_CUDA
+        if( mHaveCudaRequirements )
+        {
+            mTrt.isEnabled = ( mTrt.fftSize == aIndex );
+
+            if( mTrt.isEnabled )
+            {
+                mTrtTimer->start( 1000 * mTrt.inferPeriod );
+            }
+            else
+            {
+                mTrtTimer->stop();
+            }
+
+            if( mTrtSettingsDlg.isVisible() )
+            {
+                mTrtSettingsUi->StatusValue->setText( mTrt.isEnabled ? "ENABLED" : "DISABLED" );
+            }
+        }
+#endif
     }
 }
 
@@ -1390,6 +1504,77 @@ uint16_t SpectralViewer::getDaqDelayUs()
 }
 
 
+#if BUILD_CUDA
+    //!************************************************************************
+    //! Handle for changing the TensorRT inference period
+    //!
+    //! @returns nothing
+    //!************************************************************************
+    /* slot */ void SpectralViewer::handleChangedTrtInferPeriod
+        (
+        int aValue      //!< index
+        )
+    {
+        mTrt.inferPeriod = aValue;
+
+        if( mTrtTimer->isActive() )
+        {
+            mTrtSettingsUi->Xloss->clear();
+            mTrtSettingsUi->Yloss->clear();
+            mTrtSettingsUi->Zloss->clear();
+
+            mTrtTimer->stop();
+
+            startTrtInference();
+            mTrtTimer->start( 1000 * mTrt.inferPeriod );
+
+        }
+    }
+
+
+    //!************************************************************************
+    //! Handle for changing the TensorRT inference loss threshold for X-axis
+    //!
+    //! @returns nothing
+    //!************************************************************************
+    /* slot */ void SpectralViewer::handleChangedTrtInferXloss
+        (
+        double aValue   //!< value
+        )
+    {
+        mTrt.lossThd.xAxis = aValue;
+    }
+
+
+    //!************************************************************************
+    //! Handle for changing the TensorRT inference loss threshold for Y-axis
+    //!
+    //! @returns nothing
+    //!************************************************************************
+    /* slot */ void SpectralViewer::handleChangedTrtInferYloss
+        (
+        double aValue   //!< value
+        )
+    {
+        mTrt.lossThd.yAxis = aValue;
+    }
+
+
+    //!************************************************************************
+    //! Handle for changing the TensorRT inference loss threshold for Z-axis
+    //!
+    //! @returns nothing
+    //!************************************************************************
+    /* slot */ void SpectralViewer::handleChangedTrtInferZloss
+        (
+        double aValue   //!< value
+        )
+    {
+        mTrt.lossThd.zAxis = aValue;
+    }
+#endif
+
+
 //!************************************************************************
 //! Handle for changing the vibration monitoring option item on X-axis
 //!
@@ -1725,6 +1910,20 @@ uint16_t SpectralViewer::getDaqDelayUs()
 
     mPlot3dOptionsDlg.exec();
 }
+
+
+#if BUILD_CUDA
+//!************************************************************************
+    //! Handle for TensorRT settings
+    //!
+    //! @returns: nothing
+    //!************************************************************************
+    /* slot */ void SpectralViewer::handleMenuTrtSettings()
+    {
+        updateTrtSettingsDialogControls();
+        mTrtSettingsDlg.exec();
+    }
+#endif
 
 
 //!************************************************************************
@@ -3144,6 +3343,47 @@ uint16_t SpectralViewer::getDaqDelayUs()
 }
 
 
+#if BUILD_CUDA
+    //!************************************************************************
+    //! Handle for actions related to TensorRT engine build
+    //!
+    //! @returns nothing
+    //!************************************************************************
+    /* slot */ void SpectralViewer::handleTrtBuildDone()
+    {   
+        mTrt.engineTried = true;
+
+        mMainUi->actionExit->setEnabled( true );
+        mMainUi->actionExit->setText( "&Exit" );
+
+        mTrt.engineBuilt = mTrt.cbmOnnx.isEngineBuilt();
+
+        if( mTrt.engineBuilt )
+        {
+            mTrt.feedData.xData.resize( mTrt.feedBufferSize, 0 );
+            mTrt.feedData.yData.resize( mTrt.feedBufferSize, 0 );
+            mTrt.feedData.zData.resize( mTrt.feedBufferSize, 0 );
+
+            connect( this->mVibrationHndlInstance, SIGNAL( haveNewFftBins(int) ), this, SLOT( receiveNewFft(int) ) );
+            connect( mTrtTimer, SIGNAL( timeout() ), this, SLOT( startTrtInference() ) );
+
+            if( mTrt.isEnabled )
+            {
+                mTrtTimer->start( 1000 * mTrt.inferPeriod );
+            }
+
+            mTrtMenuDl->setEnabled( true );
+        }
+        else
+        {
+            QMessageBox::critical( this, APP_NAME,
+                                   "Building the Deep Learning TensorRT engine failed.",
+                                   QMessageBox::Ok );
+        }
+    }
+#endif
+
+
 //!************************************************************************
 //! Initialize the controls from the accelerometer settings dialog
 //!
@@ -3432,6 +3672,28 @@ void SpectralViewer::initPlot3dOptionsControls()
 
     connect( mPlot3dOptionsUi->OkButton, SIGNAL( clicked() ), this, SLOT( handlePlot3dOptionsClosed() ) );
 }
+
+
+#if BUILD_CUDA
+    //!************************************************************************
+    //! Initialize the controls from the TensorRT settings dialog
+    //!
+    //! @returns: nothing
+    //!************************************************************************
+    void SpectralViewer::initTrtSettingsDialogControls()
+    {
+        mTrtSettingsDlg.setWindowTitle( APP_NAME + " - TensorRT Settings" );
+        updateTrtSettingsDialogControls();
+
+        connect( mTrtSettingsUi->InferPeriodSpinBox, SIGNAL( valueChanged(int) ), this, SLOT( handleChangedTrtInferPeriod(int) ) );
+
+        connect( mTrtSettingsUi->XlossSpinBox, SIGNAL( valueChanged(double) ), this, SLOT( handleChangedTrtInferXloss(double) ) );
+        connect( mTrtSettingsUi->YlossSpinBox, SIGNAL( valueChanged(double) ), this, SLOT( handleChangedTrtInferYloss(double) ) );
+        connect( mTrtSettingsUi->ZlossSpinBox, SIGNAL( valueChanged(double) ), this, SLOT( handleChangedTrtInferZloss(double) ) );
+
+        connect( mTrtSettingsUi->CloseButton, SIGNAL( clicked() ), &mTrtSettingsDlg, SLOT( close() ) );
+    }
+#endif
 
 
 //!************************************************************************
@@ -3735,6 +3997,62 @@ void SpectralViewer::readTemperature()
 }
 
 
+#if BUILD_CUDA
+    //!************************************************************************
+    //! Signal receiver for new FFT bins
+    //!
+    //! @returns nothing
+    //!************************************************************************
+    /* slot */ void SpectralViewer::receiveNewFft
+        (
+        int  aAxis   //!< axis
+        )
+    {
+        if( mTrt.isEnabled )
+        {
+            mTrtMutex.lock();
+                Adxl355Adxl357Common::Axis axis = static_cast<Adxl355Adxl357Common::Axis>( aAxis );
+                VibrationHandler* vh = VibrationHandler::getInstance();
+                std::vector<VibrationHandler::FftBin> binsVec = vh->getFftBinsOnAxis( axis );
+                size_t dataLen = binsVec.size();
+
+                if( dataLen == mTrt.feedBufferSize )
+                {
+                    int i = 0;
+
+                    switch( axis )
+                    {
+                        case Adxl355Adxl357Common::AXIS_X:
+                            for( i = 0; i < dataLen; i++ )
+                            {
+                                mTrt.feedData.xData.at( i ) = binsVec.at( i ).value;
+                            }
+                            break;
+
+                        case Adxl355Adxl357Common::AXIS_Y:
+                            for( i = 0; i < dataLen; i++ )
+                            {
+                                mTrt.feedData.yData.at( i ) = binsVec.at( i ).value;
+                            }
+                            break;
+
+                        case Adxl355Adxl357Common::AXIS_Z:
+                            for( i = 0; i < dataLen; i++ )
+                            {
+                                mTrt.feedData.zData.at( i ) = binsVec.at( i ).value;
+                            }
+                            break;
+
+                        default:
+                            break;
+                    }
+                }
+            mTrtMutex.unlock();
+        }
+    }
+#endif
+
+
 //!************************************************************************
 //! Receive the SPS value sent by the DAQ thread
 //!
@@ -3967,6 +4285,77 @@ void SpectralViewer::runConfiguration()
 
     mIsConfigSetupRunning = true;
 }
+
+
+#if BUILD_CUDA
+    //!************************************************************************
+    //! Start running the TensorRT inference
+    //!
+    //! @returns: nothing
+    //!************************************************************************
+    /* slot */ void SpectralViewer::startTrtInference()
+    {        
+        double loss = 0;
+
+
+        mTrtMutex.lock();
+            mTrt.cbmOnnx.feedInputData( mTrt.feedData.xData );
+        mTrtMutex.unlock();
+
+        mTrt.cbmOnnx.infer();
+        bool xInferSuccessful = mTrt.cbmOnnx.isInferenceSuccessful( loss );
+        mTrt.lossCalc.xAxis = xInferSuccessful ? loss : 0;
+
+
+        mTrtMutex.lock();
+            mTrt.cbmOnnx.feedInputData( mTrt.feedData.yData );
+        mTrtMutex.unlock();
+
+        mTrt.cbmOnnx.infer();
+        bool yInferSuccessful = mTrt.cbmOnnx.isInferenceSuccessful( loss );
+        mTrt.lossCalc.yAxis = yInferSuccessful ? loss : 0;
+
+
+        mTrtMutex.lock();
+            mTrt.cbmOnnx.feedInputData( mTrt.feedData.zData );
+        mTrtMutex.unlock();
+
+        mTrt.cbmOnnx.infer();
+        bool zInferSuccessful = mTrt.cbmOnnx.isInferenceSuccessful( loss );
+        mTrt.lossCalc.zAxis = zInferSuccessful ? loss : 0;
+
+
+        if( xInferSuccessful )
+        {
+            mTrtSettingsUi->Xloss->addItem( QString::number( mTrt.lossCalc.xAxis ) );
+        }
+        else
+        {
+            mTrtSettingsUi->Xloss->addItem( "Inference failed" );
+        }
+        mTrtSettingsUi->Xloss->scrollToBottom();
+
+        if( yInferSuccessful )
+        {
+            mTrtSettingsUi->Yloss->addItem( QString::number( mTrt.lossCalc.yAxis ) );
+        }
+        else
+        {
+            mTrtSettingsUi->Yloss->addItem( "Inference failed" );
+        }
+        mTrtSettingsUi->Yloss->scrollToBottom();
+
+        if( zInferSuccessful )
+        {
+            mTrtSettingsUi->Zloss->addItem( QString::number( mTrt.lossCalc.zAxis ) );
+        }
+        else
+        {
+            mTrtSettingsUi->Zloss->addItem( "Inference failed" );
+        }
+        mTrtSettingsUi->Zloss->scrollToBottom();
+    }
+#endif
 
 
 //!************************************************************************
@@ -4585,3 +4974,33 @@ void SpectralViewer::updatePlotsVerticalMaxTransient()
         mPlot3dZtransient->setVerticalMaxTransient( verticalMax );
     }
 }
+
+
+#if BUILD_CUDA
+    //!************************************************************************
+    //! Update the controls from the TensorRT settings dialog
+    //!
+    //! @returns: nothing
+    //!************************************************************************
+    void SpectralViewer::updateTrtSettingsDialogControls()
+    {
+        // inference status
+        mTrtSettingsUi->StatusValue->setText( mTrt.isEnabled ? "ENABLED" : "DISABLED" );
+
+        // inference period
+        mTrtSettingsUi->InferPeriodSpinBox->setValue( mTrt.inferPeriod );
+
+        // inference loss thresholds
+        mTrtSettingsUi->XlossSpinBox->setValue( mTrt.lossThd.xAxis );
+        mTrtSettingsUi->YlossSpinBox->setValue( mTrt.lossThd.yAxis );
+        mTrtSettingsUi->ZlossSpinBox->setValue( mTrt.lossThd.zAxis );
+
+        // full log
+        mTrtSettingsUi->LogWidget->clear();
+
+        for( int i = 0; i < mTrt.cbmOnnx.getTrtlog().size(); i++ )
+        {
+            mTrtSettingsUi->LogWidget->addItem( QString::fromStdString( mTrt.cbmOnnx.getTrtlog().at( i ) ) );
+        }
+    }
+#endif
