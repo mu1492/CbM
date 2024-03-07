@@ -69,7 +69,7 @@ class TrtCbmOnnx : public QObject
                 T*  aInferObject     //!< inference object
                 ) const
             {
-                Q_UNUSED( aInferObject )
+                delete aInferObject;
             }
         }InferDeleter;
 
@@ -104,6 +104,8 @@ class TrtCbmOnnx : public QObject
 
         std::vector<std::string> getTrtlog() const;
 
+        void infer();
+
         bool isEngineBuilt() const;
 
         bool isInferenceSuccessful
@@ -113,8 +115,6 @@ class TrtCbmOnnx : public QObject
 
     public slots:
         void startBuild();
-
-        void infer();
 
     private:
         bool constructNetwork
@@ -137,8 +137,6 @@ class TrtCbmOnnx : public QObject
 
     signals:
         void buildFinished();
-
-        void inferFinished();
 
 
     //************************************************************************

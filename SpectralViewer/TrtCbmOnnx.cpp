@@ -161,8 +161,6 @@ void TrtCbmOnnx::infer()
 
         mInferSuccessful = status;
     }
-
-    emit inferFinished();
 }
 
 

@@ -47,6 +47,7 @@ This file contains the sources for the mechanical vibrations spectral viewer.
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QTime>
+#include <QVBoxLayout>
 
 
 const QString SpectralViewer::APP_NAME = "Spectral Viewer";
@@ -94,6 +95,12 @@ SpectralViewer::SpectralViewer
 #if BUILD_CUDA
     , mHaveCudaRequirements( true )
     , mTrtTimer( new QTimer( this ) )
+    , mTrtInfer01Canvas( nullptr )
+    , mTrtInfer01Size( 600 ) // 10m
+    , mTrtInfer10Canvas( nullptr )
+    , mTrtInfer10Size( 360 ) // 1h
+    , mTrtInfer60Canvas( nullptr )
+    , mTrtInfer60Size( 300 ) // 5h
 #endif
     // paint&draw
     , mCbmCanvas( nullptr )
@@ -349,30 +356,28 @@ SpectralViewer::SpectralViewer
         mTrt.feedBufferSize = TrtCbmOnnx::INPUT_BUFFER_SIZE;
         mTrt.isEnabled = false;
 
-        mTrt.inferPeriod = 10;
-
         memset( &mTrt.lossCalc, 0, sizeof( mTrt.lossCalc ) );
 
-        mTrt.lossThd.xAxis = 8.5;
-        mTrt.lossThd.yAxis = 8.5;
-        mTrt.lossThd.zAxis = 8.5;
+        mTrt.lossHistoryData.zAxis.resize( INFER_HISTORY_LENGTH, 0 );
+
+        mTrt.lossThd.zAxis = INFER_LOSS_THD;
 
         mTrt.cbmOnnx.moveToThread( mTrt.engineBuildThread );
         connect( mTrt.engineBuildThread, SIGNAL( started() ), &mTrt.cbmOnnx, SLOT( startBuild() ) );
         connect( &mTrt.cbmOnnx, SIGNAL( buildFinished() ), this, SLOT( handleTrtBuildDone() ) );
         mTrt.engineBuildThread->start();
 
-        mTrtMenuDl = new QMenu( "&Deep Learning" );
-        mMainUi->menubar->insertMenu( mMainUi->menuHelp->menuAction(), mTrtMenuDl );
+        mTrtMenuInfer = new QMenu( "&Inference" );
+        mMainUi->menubar->insertMenu( mMainUi->menuHelp->menuAction(), mTrtMenuInfer );
 
         mTrtActionSettings = new QAction( "&Settings" );
-        mTrtMenuDl->addAction( mTrtActionSettings );
+        mTrtMenuInfer->addAction( mTrtActionSettings );
 
         connect( mTrtActionSettings, &QAction::triggered, this, &SpectralViewer::handleMenuTrtSettings );
         initTrtSettingsDialogControls();
 
-        // disable DL menu entry
-        mTrtMenuDl->setEnabled( false );
+        // disable Inference menu entry
+        mTrtMenuInfer->setEnabled( false );
         // disable Exit submenu while DL TensorRT engine is being built
         mMainUi->actionExit->setEnabled( false );
         mMainUi->actionExit->setText( "*** building TensorRT engine ***" );
@@ -588,6 +593,28 @@ bool SpectralViewer::changeAccelRange
             QMessageBox::warning( this, "SpectralViewer - CUDA", msg, QMessageBox::Ok );
         }
     }
+
+
+    //!************************************************************************
+    //! Check for the number of inference losses above the threshold.
+    //! Focus is on the array of 1 second inferences.
+    //!
+    //! @returns The number of events above threshold
+    //!************************************************************************
+    uint16_t SpectralViewer::checkInferEventsAboveThd()
+    {
+        uint16_t eventsCount = 0;
+
+        for( size_t i = 0; i < mTrtInfer01Canvas->getDataVector().size(); i++ )
+        {
+            if( mTrtInfer01Canvas->getDataVector().at( i ) >= mTrt.lossThd.zAxis )
+            {
+                eventsCount++;
+            }
+        }
+
+        return eventsCount;
+    }
 #endif
 
 
@@ -638,6 +665,23 @@ bool SpectralViewer::compareIchar
     return std::tolower( static_cast<unsigned char>( aFirstChar ) ) ==
            std::tolower( static_cast<unsigned char>( aSecondChar ) );
 }
+
+
+#if BUILD_CUDA
+    //!************************************************************************
+    //! Comparison function for inference values
+    //!
+    //! @returns true if first number is smaller than second
+    //!************************************************************************
+    bool SpectralViewer::compareInferFnc
+        (
+        double aFirstInfer, //!< first inference
+        double aSecondInfer //!< second inference
+        )
+    {
+        return aFirstInfer < aSecondInfer;
+    }
+#endif
 
 
 //!************************************************************************
@@ -854,7 +898,7 @@ uint16_t SpectralViewer::getDaqDelayUs()
 
             if( mTrt.isEnabled )
             {
-                mTrtTimer->start( 1000 * mTrt.inferPeriod );
+                mTrtTimer->start( 1000 * INFER_PERIOD );
             }
             else
             {
@@ -1506,61 +1550,6 @@ uint16_t SpectralViewer::getDaqDelayUs()
 
 #if BUILD_CUDA
     //!************************************************************************
-    //! Handle for changing the TensorRT inference period
-    //!
-    //! @returns nothing
-    //!************************************************************************
-    /* slot */ void SpectralViewer::handleChangedTrtInferPeriod
-        (
-        int aValue      //!< index
-        )
-    {
-        mTrt.inferPeriod = aValue;
-
-        if( mTrtTimer->isActive() )
-        {
-            mTrtSettingsUi->Xloss->clear();
-            mTrtSettingsUi->Yloss->clear();
-            mTrtSettingsUi->Zloss->clear();
-
-            mTrtTimer->stop();
-
-            startTrtInference();
-            mTrtTimer->start( 1000 * mTrt.inferPeriod );
-
-        }
-    }
-
-
-    //!************************************************************************
-    //! Handle for changing the TensorRT inference loss threshold for X-axis
-    //!
-    //! @returns nothing
-    //!************************************************************************
-    /* slot */ void SpectralViewer::handleChangedTrtInferXloss
-        (
-        double aValue   //!< value
-        )
-    {
-        mTrt.lossThd.xAxis = aValue;
-    }
-
-
-    //!************************************************************************
-    //! Handle for changing the TensorRT inference loss threshold for Y-axis
-    //!
-    //! @returns nothing
-    //!************************************************************************
-    /* slot */ void SpectralViewer::handleChangedTrtInferYloss
-        (
-        double aValue   //!< value
-        )
-    {
-        mTrt.lossThd.yAxis = aValue;
-    }
-
-
-    //!************************************************************************
     //! Handle for changing the TensorRT inference loss threshold for Z-axis
     //!
     //! @returns nothing
@@ -1571,6 +1560,24 @@ uint16_t SpectralViewer::getDaqDelayUs()
         )
     {
         mTrt.lossThd.zAxis = aValue;
+
+        if( mTrtInfer01Canvas )
+        {
+            mTrtInfer01Canvas->setThreshold( mTrt.lossThd.zAxis );
+            mTrtInfer01Canvas->update();
+        }
+
+        if( mTrtInfer10Canvas )
+        {
+            mTrtInfer10Canvas->setThreshold( mTrt.lossThd.zAxis );
+            mTrtInfer10Canvas->update();
+        }
+
+        if( mTrtInfer60Canvas )
+        {
+            mTrtInfer60Canvas->setThreshold( mTrt.lossThd.zAxis );
+            mTrtInfer60Canvas->update();
+        }
     }
 #endif
 
@@ -3360,8 +3367,6 @@ uint16_t SpectralViewer::getDaqDelayUs()
 
         if( mTrt.engineBuilt )
         {
-            mTrt.feedData.xData.resize( mTrt.feedBufferSize, 0 );
-            mTrt.feedData.yData.resize( mTrt.feedBufferSize, 0 );
             mTrt.feedData.zData.resize( mTrt.feedBufferSize, 0 );
 
             connect( this->mVibrationHndlInstance, SIGNAL( haveNewFftBins(int) ), this, SLOT( receiveNewFft(int) ) );
@@ -3369,10 +3374,10 @@ uint16_t SpectralViewer::getDaqDelayUs()
 
             if( mTrt.isEnabled )
             {
-                mTrtTimer->start( 1000 * mTrt.inferPeriod );
+                mTrtTimer->start( 1000 * INFER_PERIOD );
             }
 
-            mTrtMenuDl->setEnabled( true );
+            mTrtMenuInfer->setEnabled( true );
         }
         else
         {
@@ -3682,14 +3687,63 @@ void SpectralViewer::initPlot3dOptionsControls()
     //!************************************************************************
     void SpectralViewer::initTrtSettingsDialogControls()
     {
+        //////////////////////////
+        /// Window title
+        //////////////////////////
         mTrtSettingsDlg.setWindowTitle( APP_NAME + " - TensorRT Settings" );
+
+        //////////////////////////
+        /// Plot for 1 s inference
+        //////////////////////////
+        mTrtInfer01Canvas = new PlotInferCanvas( &mTrtSettingsDlg );
+        auto layout01Sec = new QVBoxLayout();
+        layout01Sec->setMargin( 0 );
+        layout01Sec->addWidget( mTrtInfer01Canvas );
+        mTrtSettingsUi->Frame01Sec->setLayout( layout01Sec );
+        mTrtInfer01Canvas->adjustSize();
+        mTrtInfer01Canvas->setThreshold( INFER_LOSS_THD );
+        // elements are 1s apart => 600 * 1s = 10m span
+        mTrtInfer01Canvas->getDataVector().resize( mTrtInfer01Size, 0 );
+        mTrtInfer01Canvas->setHorizontalMax( mTrtInfer01Size );
+        mTrtInfer01Canvas->update();
+
+        //////////////////////////
+        /// Plot for averaged 10 s inference
+        //////////////////////////
+        mTrtInfer10Canvas = new PlotInferCanvas( &mTrtSettingsDlg );
+        auto layout10Sec = new QVBoxLayout();
+        layout10Sec->setMargin( 0 );
+        layout10Sec->addWidget( mTrtInfer10Canvas );
+        mTrtSettingsUi->Frame10Sec->setLayout( layout10Sec );
+        mTrtInfer10Canvas->adjustSize();
+        mTrtInfer10Canvas->setThreshold( INFER_LOSS_THD );
+        // elements are 10s apart => 360 * 10s = 1h span
+        mTrtInfer10Canvas->getDataVector().resize( mTrtInfer10Size, 0 );
+        mTrtInfer10Canvas->setHorizontalMax( mTrtInfer10Size * 10 );
+        mTrtInfer10Canvas->update();
+
+        //////////////////////////
+        /// Plot for averaged 60 s inference
+        //////////////////////////
+        mTrtInfer60Canvas = new PlotInferCanvas( &mTrtSettingsDlg );
+        auto layout60Sec = new QVBoxLayout();
+        layout60Sec->setMargin( 0 );
+        layout60Sec->addWidget( mTrtInfer60Canvas );
+        mTrtSettingsUi->Frame60Sec->setLayout( layout60Sec );
+        mTrtInfer60Canvas->adjustSize();
+        mTrtInfer60Canvas->setThreshold( INFER_LOSS_THD );
+        // elements are 1m apart => 300 * 1m = 5h span
+        mTrtInfer60Canvas->getDataVector().resize( mTrtInfer60Size, 0 );
+        mTrtInfer60Canvas->setHorizontalMax( mTrtInfer60Size * 60 );
+        mTrtInfer60Canvas->update();
+
+
+        //////////////////////////
+        /// Common updates
+        //////////////////////////
         updateTrtSettingsDialogControls();
 
-        connect( mTrtSettingsUi->InferPeriodSpinBox, SIGNAL( valueChanged(int) ), this, SLOT( handleChangedTrtInferPeriod(int) ) );
-
-        connect( mTrtSettingsUi->XlossSpinBox, SIGNAL( valueChanged(double) ), this, SLOT( handleChangedTrtInferXloss(double) ) );
-        connect( mTrtSettingsUi->YlossSpinBox, SIGNAL( valueChanged(double) ), this, SLOT( handleChangedTrtInferYloss(double) ) );
-        connect( mTrtSettingsUi->ZlossSpinBox, SIGNAL( valueChanged(double) ), this, SLOT( handleChangedTrtInferZloss(double) ) );
+        connect( mTrtSettingsUi->LossThdSpinBox, SIGNAL( valueChanged(double) ), this, SLOT( handleChangedTrtInferZloss(double) ) );
 
         connect( mTrtSettingsUi->CloseButton, SIGNAL( clicked() ), &mTrtSettingsDlg, SLOT( close() ) );
     }
@@ -4022,24 +4076,10 @@ void SpectralViewer::readTemperature()
 
                     switch( axis )
                     {
-                        case Adxl355Adxl357Common::AXIS_X:
-                            for( i = 0; i < dataLen; i++ )
-                            {
-                                mTrt.feedData.xData.at( i ) = binsVec.at( i ).value;
-                            }
-                            break;
-
-                        case Adxl355Adxl357Common::AXIS_Y:
-                            for( i = 0; i < dataLen; i++ )
-                            {
-                                mTrt.feedData.yData.at( i ) = binsVec.at( i ).value;
-                            }
-                            break;
-
                         case Adxl355Adxl357Common::AXIS_Z:
                             for( i = 0; i < dataLen; i++ )
                             {
-                                mTrt.feedData.zData.at( i ) = binsVec.at( i ).value;
+                                mTrt.feedData.zData.at( i ) = binsVec.at( i ).value / ( 2.0 * mTrt.feedBufferSize );
                             }
                             break;
 
@@ -4295,65 +4335,105 @@ void SpectralViewer::runConfiguration()
     //!************************************************************************
     /* slot */ void SpectralViewer::startTrtInference()
     {        
-        double loss = 0;
-
-
-        mTrtMutex.lock();
-            mTrt.cbmOnnx.feedInputData( mTrt.feedData.xData );
-        mTrtMutex.unlock();
-
-        mTrt.cbmOnnx.infer();
-        bool xInferSuccessful = mTrt.cbmOnnx.isInferenceSuccessful( loss );
-        mTrt.lossCalc.xAxis = xInferSuccessful ? loss : 0;
-
-
-        mTrtMutex.lock();
-            mTrt.cbmOnnx.feedInputData( mTrt.feedData.yData );
-        mTrtMutex.unlock();
-
-        mTrt.cbmOnnx.infer();
-        bool yInferSuccessful = mTrt.cbmOnnx.isInferenceSuccessful( loss );
-        mTrt.lossCalc.yAxis = yInferSuccessful ? loss : 0;
-
-
         mTrtMutex.lock();
             mTrt.cbmOnnx.feedInputData( mTrt.feedData.zData );
         mTrtMutex.unlock();
 
         mTrt.cbmOnnx.infer();
+        double loss = 0;
         bool zInferSuccessful = mTrt.cbmOnnx.isInferenceSuccessful( loss );
         mTrt.lossCalc.zAxis = zInferSuccessful ? loss : 0;
 
+        mVibrationHndlInstance->shiftLeft( mTrt.lossHistoryData.zAxis );
+        mTrt.lossHistoryData.zAxis.back() = mTrt.lossCalc.zAxis;
 
-        if( xInferSuccessful )
-        {
-            mTrtSettingsUi->Xloss->addItem( QString::number( mTrt.lossCalc.xAxis ) );
-        }
-        else
-        {
-            mTrtSettingsUi->Xloss->addItem( "Inference failed" );
-        }
-        mTrtSettingsUi->Xloss->scrollToBottom();
+        static uint16_t inferIt = 0;
+        std::vector<double>::iterator itFirst;
+        std::vector<double>::iterator itLast;
+        size_t vecSize = 0;
 
-        if( yInferSuccessful )
-        {
-            mTrtSettingsUi->Yloss->addItem( QString::number( mTrt.lossCalc.yAxis ) );
-        }
-        else
-        {
-            mTrtSettingsUi->Yloss->addItem( "Inference failed" );
-        }
-        mTrtSettingsUi->Yloss->scrollToBottom();
+        inferIt++;
 
-        if( zInferSuccessful )
+        // 1 second
+        if( mTrtInfer01Canvas )
         {
-            mTrtSettingsUi->Zloss->addItem( QString::number( mTrt.lossCalc.zAxis ) );
+            vecSize = mTrtInfer01Canvas->getDataVector().size();
+            itFirst = mTrt.lossHistoryData.zAxis.end() - 1 - vecSize;
+            itLast = mTrt.lossHistoryData.zAxis.end() - 1;
+            mTrtInfer01Canvas->getDataVector().assign( itFirst, itLast );
+            mTrtInfer01Canvas->setVerticalMax( *std::max_element( std::begin( mTrtInfer01Canvas->getDataVector() ),
+                                                                  std::end( mTrtInfer01Canvas->getDataVector() ),
+                                                                  compareInferFnc ) );
+            mTrtInfer01Canvas->update();
+
+            uint16_t eventsDetected = checkInferEventsAboveThd();
+            mTrtSettingsUi->EventsLabel->setText( QString::number( eventsDetected ) + " events above threshold" );
         }
-        else
+
+        // 10 seconds avg.
+        if( mTrtInfer10Canvas )
         {
-            mTrtSettingsUi->Zloss->addItem( "Inference failed" );
+            vecSize = mTrtInfer10Canvas->getDataVector().size();
+            const uint8_t AVG_LEN = 10;
+            uint8_t historyCounter = 0;
+            uint16_t destCounter = 0;
+            double avg = 0;
+
+            for( int i = INFER_HISTORY_LENGTH - 1; i >= INFER_HISTORY_LENGTH - mTrtInfer10Size * AVG_LEN; i-- )
+            {
+                historyCounter++;
+                avg += mTrt.lossHistoryData.zAxis.at( i );
+
+                if( 0 == historyCounter % AVG_LEN )
+                {
+                    mTrtInfer10Canvas->getDataVector().at( vecSize - 1 - destCounter ) = avg / static_cast<double>( AVG_LEN );
+                    destCounter++;
+                    historyCounter = 0;
+                    avg = 0;
+                }
+            }
+
+            mTrtInfer10Canvas->setVerticalMax( *std::max_element( std::begin( mTrtInfer10Canvas->getDataVector() ),
+                                                                  std::end( mTrtInfer10Canvas->getDataVector() ),
+                                                                  compareInferFnc ) );
+            if( 0 == inferIt % AVG_LEN )
+            {
+                mTrtInfer10Canvas->update();
+            }
         }
-        mTrtSettingsUi->Zloss->scrollToBottom();
+
+        // 60 seconds avg.
+        if( mTrtInfer60Canvas )
+        {
+            vecSize = mTrtInfer60Canvas->getDataVector().size();
+            const uint8_t AVG_LEN = 60;
+            uint8_t historyCounter = 0;
+            uint16_t destCounter = 0;
+            double avg = 0;
+
+            for( int i = INFER_HISTORY_LENGTH - 1; i >= INFER_HISTORY_LENGTH - mTrtInfer60Size * AVG_LEN; i-- )
+            {
+                historyCounter++;
+                avg += mTrt.lossHistoryData.zAxis.at( i );
+
+                if( 0 == historyCounter % AVG_LEN )
+                {
+                    mTrtInfer60Canvas->getDataVector().at( vecSize - 1 - destCounter ) = avg / static_cast<double>( AVG_LEN );
+                    destCounter++;
+                    historyCounter = 0;
+                    avg = 0;
+                }
+            }
+
+            mTrtInfer60Canvas->setVerticalMax( *std::max_element( std::begin( mTrtInfer60Canvas->getDataVector() ),
+                                                                  std::end( mTrtInfer60Canvas->getDataVector() ),
+                                                                  compareInferFnc ) );
+            if( 0 == inferIt % AVG_LEN )
+            {
+                mTrtInfer60Canvas->update();
+                inferIt = 0;
+            }
+        }
     }
 #endif
 
@@ -4987,13 +5067,8 @@ void SpectralViewer::updatePlotsVerticalMaxTransient()
         // inference status
         mTrtSettingsUi->StatusValue->setText( mTrt.isEnabled ? "ENABLED" : "DISABLED" );
 
-        // inference period
-        mTrtSettingsUi->InferPeriodSpinBox->setValue( mTrt.inferPeriod );
-
-        // inference loss thresholds
-        mTrtSettingsUi->XlossSpinBox->setValue( mTrt.lossThd.xAxis );
-        mTrtSettingsUi->YlossSpinBox->setValue( mTrt.lossThd.yAxis );
-        mTrtSettingsUi->ZlossSpinBox->setValue( mTrt.lossThd.zAxis );
+        // inference loss threshold
+        mTrtSettingsUi->LossThdSpinBox->setValue( mTrt.lossThd.zAxis );
 
         // full log
         mTrtSettingsUi->LogWidget->clear();

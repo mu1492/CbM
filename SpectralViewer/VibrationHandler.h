@@ -269,17 +269,17 @@ class VibrationHandler : public QObject
             int aSps            //!< sampling rate [Hz]
             );
 
+        void shiftLeft
+            (
+            std::vector<double>& aVector    //!< vector
+            ) const;
+
     private:
         void calculateSpectrumX();
 
         void calculateSpectrumY();
 
         void calculateSpectrumZ();
-
-        void shiftLeft
-            (
-            std::vector<double>& aVector    //!< vector
-            ) const;
 
     signals:
         void haveNewCepstrum

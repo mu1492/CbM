@@ -44,6 +44,7 @@ This file contains the definitions for the mechanical vibrations spectral viewer
 #if BUILD_CUDA
     #include <cuda.h>
     #include "helper_cuda_drvapi.h"
+    #include "PlotInferCanvas.h"
     #include "TrtCbmOnnx.h"
     #include "./ui_TrtSettings.h"
 #endif
@@ -105,24 +106,27 @@ class SpectralViewer : public QMainWindow
 
         typedef struct
         {
-            std::vector<float>  xData;      //!< Inference feed data - X axis
-            std::vector<float>  yData;      //!< Inference feed data - Y axis
-            std::vector<float>  zData;      //!< Inference feed data - Z axis
+            std::vector<float> zData;       //!< Inference feed data - Z axis
         }InferFeedData;
 
         typedef struct
         {
-            float       xAxis;              //!< TensorRT inference calculated loss - X axis
-            float       yAxis;              //!< TensorRT inference calculated loss - Y axis
-            float       zAxis;              //!< TensorRT inference calculated loss - Z axis
+            double       zAxis;             //!< TensorRT inference calculated loss - Z axis
         }InferLossCalculated;
 
         typedef struct
         {
-            float       xAxis;              //!< TensorRT inference loss threshold - X axis
-            float       yAxis;              //!< TensorRT inference loss threshold - Y axis
+            std::vector<double> zAxis;      //!< TensorRt inference history - Z axis
+        }InferLossHistory;
+
+        typedef struct
+        {
             float       zAxis;              //!< TensorRT inference loss threshold - Z axis
         }InferLossThreshold;
+
+        static const uint8_t INFER_PERIOD = 1;              //!< [s]
+        static const uint16_t INFER_HISTORY_LENGTH = 18000; //!< [s] <=> 5 hrs
+        static constexpr double INFER_LOSS_THD = 8.5;       //!< default inference loss threshold
 
         typedef struct
         {
@@ -134,9 +138,9 @@ class SpectralViewer : public QMainWindow
             int32_t                             feedBufferSize;     //!< buffer size for feed data
             InferFeedData                       feedData;           //!< triaxial feed data
             bool                                isEnabled;          //!< true if the engine is enabled
-            int                                 inferPeriod;        //!< inference period [s]
-            InferLossCalculated                 lossCalc;           //!< triaxial inference calculated loss
-            InferLossThreshold                  lossThd;            //!< triaxial inference loss thresholds
+            InferLossCalculated                 lossCalc;           //!< inference calculated loss
+            InferLossHistory                    lossHistoryData;    //!< inference history
+            InferLossThreshold                  lossThd;            //!< inference loss thresholds
         }TensorRt;
 #endif
 
@@ -240,6 +244,8 @@ class SpectralViewer : public QMainWindow
 
 #if BUILD_CUDA
         void checkCudaRequirements();
+
+        uint16_t checkInferEventsAboveThd();
 #endif
 
         static bool compareIchar
@@ -247,6 +253,14 @@ class SpectralViewer : public QMainWindow
             char aFirstChar,    //!< 1st character
             char aSecondChar    //!< 2nd character
             );
+
+#if BUILD_CUDA
+        static bool compareInferFnc
+            (
+            double aFirstInfer, //!< first inference
+            double aSecondInfer //!< second inference
+            );
+#endif
 
         bool compareIstr
             (
@@ -505,19 +519,6 @@ class SpectralViewer : public QMainWindow
             );
 
 #if BUILD_CUDA
-        void handleChangedTrtInferPeriod
-            (
-            int aValue      //!< index
-            );
-
-        void handleChangedTrtInferXloss
-            (
-            double aValue   //!< value
-            );
-        void handleChangedTrtInferYloss
-            (
-            double aValue   //!< value
-            );
         void handleChangedTrtInferZloss
             (
             double aValue   //!< value
@@ -766,13 +767,22 @@ class SpectralViewer : public QMainWindow
 
         TensorRt                        mTrt;                   //!< Deep Learning TensorRT object
         QTimer*                         mTrtTimer;              //!< TensorRT timer
-        QMutex                          mTrtMutex;
+        QMutex                          mTrtMutex;              //!< TensorRT mutex
 
-        QMenu*                          mTrtMenuDl;             //!< Deep Learning menu entry
-        QAction*                        mTrtActionSettings;     //!< DL settings submenu
+        QMenu*                          mTrtMenuInfer;          //!< Inference menu entry
+        QAction*                        mTrtActionSettings;     //!< Inference settings submenu
 
         Ui::TrtSettingsDialog*          mTrtSettingsUi;         //!< TensorRT settings UI
         QDialog                         mTrtSettingsDlg;        //!< TensorRT settings dialog
+
+        PlotInferCanvas*                mTrtInfer01Canvas;     //!< inference plot canvas for 1 second
+        uint16_t                        mTrtInfer01Size;       //!< number of elements for 1s spacing
+
+        PlotInferCanvas*                mTrtInfer10Canvas;     //!< inference plot canvas for avg. 10 seconds
+        uint16_t                        mTrtInfer10Size;       //!< number of elements for 10s spacing
+
+        PlotInferCanvas*                mTrtInfer60Canvas;     //!< inference plot canvas for avg. 60 second
+        uint16_t                        mTrtInfer60Size;       //!< number of elements for 10s spacing
 #endif
 
         QLabel                          mSpsStatusbarLabel;     //!< SPS label on status bar

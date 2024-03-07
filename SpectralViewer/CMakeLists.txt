@@ -210,6 +210,8 @@ if(USE_CUDA)
         TrtLogger.cpp
         TrtLogger.h
         TrtSettings.ui
+        PlotInferCanvas.cpp
+        PlotInferCanvas.h
         cuMl.cu
         cuMl.hpp
         )
