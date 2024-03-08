@@ -4365,6 +4365,7 @@ void SpectralViewer::runConfiguration()
                                                                   std::end( mTrtInfer01Canvas->getDataVector() ),
                                                                   compareInferFnc ) );
             mTrtInfer01Canvas->update();
+            mTrtSettingsUi->Loss01Value->setText( QString::number( mTrtInfer01Canvas->getDataVector().at( vecSize - 1 ), 'f', 2 ) + " " );
 
             uint16_t eventsDetected = checkInferEventsAboveThd();
             mTrtSettingsUi->EventsLabel->setText( QString::number( eventsDetected ) + " events above threshold" );
@@ -4373,64 +4374,71 @@ void SpectralViewer::runConfiguration()
         // 10 seconds avg.
         if( mTrtInfer10Canvas )
         {
-            vecSize = mTrtInfer10Canvas->getDataVector().size();
             const uint8_t AVG_LEN = 10;
-            uint8_t historyCounter = 0;
-            uint16_t destCounter = 0;
-            double avg = 0;
 
-            for( int i = INFER_HISTORY_LENGTH - 1; i >= INFER_HISTORY_LENGTH - mTrtInfer10Size * AVG_LEN; i-- )
-            {
-                historyCounter++;
-                avg += mTrt.lossHistoryData.zAxis.at( i );
-
-                if( 0 == historyCounter % AVG_LEN )
-                {
-                    mTrtInfer10Canvas->getDataVector().at( vecSize - 1 - destCounter ) = avg / static_cast<double>( AVG_LEN );
-                    destCounter++;
-                    historyCounter = 0;
-                    avg = 0;
-                }
-            }
-
-            mTrtInfer10Canvas->setVerticalMax( *std::max_element( std::begin( mTrtInfer10Canvas->getDataVector() ),
-                                                                  std::end( mTrtInfer10Canvas->getDataVector() ),
-                                                                  compareInferFnc ) );
             if( 0 == inferIt % AVG_LEN )
             {
+                vecSize = mTrtInfer10Canvas->getDataVector().size();
+                uint8_t historyCounter = 0;
+                uint16_t destCounter = 0;
+                double avg = 0;
+
+                for( int i = INFER_HISTORY_LENGTH - 1; i >= INFER_HISTORY_LENGTH - mTrtInfer10Size * AVG_LEN; i-- )
+                {
+                    historyCounter++;
+                    avg += mTrt.lossHistoryData.zAxis.at( i );
+
+                    if( 0 == historyCounter % AVG_LEN )
+                    {
+                        mTrtInfer10Canvas->getDataVector().at( vecSize - 1 - destCounter ) = avg / static_cast<double>( AVG_LEN );
+                        destCounter++;
+                        historyCounter = 0;
+                        avg = 0;
+                    }
+                }
+
+                mTrtInfer10Canvas->setVerticalMax( *std::max_element( std::begin( mTrtInfer10Canvas->getDataVector() ),
+                                                                      std::end( mTrtInfer10Canvas->getDataVector() ),
+                                                                      compareInferFnc ) );
+
                 mTrtInfer10Canvas->update();
+                mTrtSettingsUi->Loss10Value->setText( QString::number( mTrtInfer10Canvas->getDataVector().at( vecSize - 1 ), 'f', 2 ) + " " );
             }
         }
 
         // 60 seconds avg.
         if( mTrtInfer60Canvas )
         {
-            vecSize = mTrtInfer60Canvas->getDataVector().size();
             const uint8_t AVG_LEN = 60;
-            uint8_t historyCounter = 0;
-            uint16_t destCounter = 0;
-            double avg = 0;
 
-            for( int i = INFER_HISTORY_LENGTH - 1; i >= INFER_HISTORY_LENGTH - mTrtInfer60Size * AVG_LEN; i-- )
-            {
-                historyCounter++;
-                avg += mTrt.lossHistoryData.zAxis.at( i );
-
-                if( 0 == historyCounter % AVG_LEN )
-                {
-                    mTrtInfer60Canvas->getDataVector().at( vecSize - 1 - destCounter ) = avg / static_cast<double>( AVG_LEN );
-                    destCounter++;
-                    historyCounter = 0;
-                    avg = 0;
-                }
-            }
-
-            mTrtInfer60Canvas->setVerticalMax( *std::max_element( std::begin( mTrtInfer60Canvas->getDataVector() ),
-                                                                  std::end( mTrtInfer60Canvas->getDataVector() ),
-                                                                  compareInferFnc ) );
             if( 0 == inferIt % AVG_LEN )
             {
+                vecSize = mTrtInfer60Canvas->getDataVector().size();
+                uint8_t historyCounter = 0;
+                uint16_t destCounter = 0;
+                double avg = 0;
+
+                for( int i = INFER_HISTORY_LENGTH - 1; i >= INFER_HISTORY_LENGTH - mTrtInfer60Size * AVG_LEN; i-- )
+                {
+                    historyCounter++;
+                    avg += mTrt.lossHistoryData.zAxis.at( i );
+
+                    if( 0 == historyCounter % AVG_LEN )
+                    {
+                        mTrtInfer60Canvas->getDataVector().at( vecSize - 1 - destCounter ) = avg / static_cast<double>( AVG_LEN );
+                        destCounter++;
+                        historyCounter = 0;
+                        avg = 0;
+                    }
+                }
+
+                mTrtInfer60Canvas->setVerticalMax( *std::max_element( std::begin( mTrtInfer60Canvas->getDataVector() ),
+                                                                      std::end( mTrtInfer60Canvas->getDataVector() ),
+                                                                      compareInferFnc ) );
+
                 mTrtInfer60Canvas->update();
+                mTrtSettingsUi->Loss60Value->setText( QString::number( mTrtInfer60Canvas->getDataVector().at( vecSize - 1 ), 'f', 2 ) + " " );
+
                 inferIt = 0;
             }
         }

@@ -158,18 +158,18 @@ color: rgb(138, 226, 52);</string>
     <rect>
      <x>20</x>
      <y>60</y>
-     <width>131</width>
+     <width>91</width>
      <height>21</height>
     </rect>
    </property>
    <property name="text">
-    <string>L1 loss threshold =</string>
+    <string>Threshold =</string>
    </property>
   </widget>
   <widget class="QDoubleSpinBox" name="LossThdSpinBox">
    <property name="geometry">
     <rect>
-     <x>160</x>
+     <x>110</x>
      <y>60</y>
      <width>61</width>
      <height>26</height>
@@ -227,7 +227,7 @@ color: rgb(138, 226, 52);</string>
     </rect>
    </property>
    <property name="text">
-    <string>Inference period = 1 second</string>
+    <string>1 second</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignCenter</set>
@@ -244,6 +244,90 @@ color: rgb(138, 226, 52);</string>
    </property>
    <property name="text">
     <string>0 events above threshold</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="Loss01Value">
+   <property name="geometry">
+    <rect>
+     <x>920</x>
+     <y>250</y>
+     <width>71</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Courier 10 Pitch</family>
+     <pointsize>9</pointsize>
+     <weight>50</weight>
+     <bold>false</bold>
+    </font>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">background-color: rgb(0, 0, 0);
+color: rgb(0, 255, 0);</string>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+   </property>
+  </widget>
+  <widget class="QLabel" name="Loss10Value">
+   <property name="geometry">
+    <rect>
+     <x>420</x>
+     <y>510</y>
+     <width>71</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Courier 10 Pitch</family>
+     <pointsize>9</pointsize>
+     <weight>50</weight>
+     <bold>false</bold>
+    </font>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">background-color: rgb(0, 0, 0);
+color: rgb(0, 255, 0);</string>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+   </property>
+  </widget>
+  <widget class="QLabel" name="Loss60Value">
+   <property name="geometry">
+    <rect>
+     <x>910</x>
+     <y>510</y>
+     <width>71</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>Courier 10 Pitch</family>
+     <pointsize>9</pointsize>
+     <weight>50</weight>
+     <bold>false</bold>
+    </font>
+   </property>
+   <property name="styleSheet">
+    <string notr="true">background-color: rgb(0, 0, 0);
+color: rgb(0, 255, 0);</string>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
    </property>
   </widget>
  </widget>
