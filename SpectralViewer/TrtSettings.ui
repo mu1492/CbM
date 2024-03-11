@@ -10,7 +10,7 @@
     <x>0</x>
     <y>0</y>
     <width>1012</width>
-    <height>747</height>
+    <height>746</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -30,6 +30,9 @@
    </property>
    <property name="text">
     <string>Close</string>
+   </property>
+   <property name="autoDefault">
+    <bool>false</bool>
    </property>
   </widget>
   <widget class="QListWidget" name="LogWidget">
@@ -153,38 +156,6 @@ color: rgb(138, 226, 52);</string>
     <string>DISABLED</string>
    </property>
   </widget>
-  <widget class="QLabel" name="LossThdLabel">
-   <property name="geometry">
-    <rect>
-     <x>20</x>
-     <y>60</y>
-     <width>91</width>
-     <height>21</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Threshold =</string>
-   </property>
-  </widget>
-  <widget class="QDoubleSpinBox" name="LossThdSpinBox">
-   <property name="geometry">
-    <rect>
-     <x>110</x>
-     <y>60</y>
-     <width>61</width>
-     <height>26</height>
-    </rect>
-   </property>
-   <property name="minimum">
-    <double>0.010000000000000</double>
-   </property>
-   <property name="singleStep">
-    <double>0.500000000000000</double>
-   </property>
-   <property name="value">
-    <double>8.500000000000000</double>
-   </property>
-  </widget>
   <widget class="QLabel" name="Label60sAvg">
    <property name="geometry">
     <rect>
@@ -231,19 +202,6 @@ color: rgb(138, 226, 52);</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignCenter</set>
-   </property>
-  </widget>
-  <widget class="QLabel" name="EventsLabel">
-   <property name="geometry">
-    <rect>
-     <x>20</x>
-     <y>110</y>
-     <width>191</width>
-     <height>17</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>0 events above threshold</string>
    </property>
   </widget>
   <widget class="QLabel" name="Loss01Value">
@@ -330,9 +288,156 @@ color: rgb(0, 255, 0);</string>
     <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
    </property>
   </widget>
+  <widget class="QLabel" name="UpperRangeLabel">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>60</y>
+     <width>101</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Upper range =</string>
+   </property>
+  </widget>
+  <widget class="QDoubleSpinBox" name="UpperRangeSpinBox">
+   <property name="geometry">
+    <rect>
+     <x>130</x>
+     <y>60</y>
+     <width>71</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="minimum">
+    <double>0.000000000000000</double>
+   </property>
+   <property name="maximum">
+    <double>100.000000000000000</double>
+   </property>
+   <property name="value">
+    <double>0.000000000000000</double>
+   </property>
+  </widget>
+  <widget class="QGroupBox" name="EventsGroupBox">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>100</y>
+     <width>211</width>
+     <height>141</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string>Events</string>
+   </property>
+   <widget class="QLabel" name="EventsLabel">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>110</y>
+      <width>191</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>0 events above threshold</string>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+    </property>
+   </widget>
+   <widget class="QLabel" name="LossThdLabel">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>30</y>
+      <width>91</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Threshold =</string>
+    </property>
+   </widget>
+   <widget class="QDoubleSpinBox" name="LossThdSpinBox">
+    <property name="geometry">
+     <rect>
+      <x>100</x>
+      <y>30</y>
+      <width>61</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="minimum">
+     <double>0.010000000000000</double>
+    </property>
+    <property name="singleStep">
+     <double>0.500000000000000</double>
+    </property>
+    <property name="value">
+     <double>8.500000000000000</double>
+    </property>
+   </widget>
+   <widget class="QLabel" name="EventsWinLabel">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>70</y>
+      <width>141</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Window length [s] =</string>
+    </property>
+   </widget>
+   <widget class="QSpinBox" name="EventsWinSpinBox">
+    <property name="geometry">
+     <rect>
+      <x>150</x>
+      <y>70</y>
+      <width>51</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="minimum">
+     <number>1</number>
+    </property>
+    <property name="maximum">
+     <number>600</number>
+    </property>
+    <property name="singleStep">
+     <number>10</number>
+    </property>
+    <property name="value">
+     <number>30</number>
+    </property>
+   </widget>
+  </widget>
+  <zorder>EventsGroupBox</zorder>
+  <zorder>CloseButton</zorder>
+  <zorder>LogWidget</zorder>
+  <zorder>LogLabel</zorder>
+  <zorder>Frame01Sec</zorder>
+  <zorder>Frame10Sec</zorder>
+  <zorder>Frame60Sec</zorder>
+  <zorder>StatusLabel</zorder>
+  <zorder>StatusValue</zorder>
+  <zorder>Label60sAvg</zorder>
+  <zorder>Label10sAvg</zorder>
+  <zorder>Label01s</zorder>
+  <zorder>Loss01Value</zorder>
+  <zorder>Loss10Value</zorder>
+  <zorder>Loss60Value</zorder>
+  <zorder>UpperRangeLabel</zorder>
+  <zorder>UpperRangeSpinBox</zorder>
  </widget>
  <tabstops>
+  <tabstop>UpperRangeSpinBox</tabstop>
   <tabstop>LossThdSpinBox</tabstop>
+  <tabstop>EventsWinSpinBox</tabstop>
   <tabstop>LogWidget</tabstop>
   <tabstop>CloseButton</tabstop>
  </tabstops>

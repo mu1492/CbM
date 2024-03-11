@@ -52,6 +52,8 @@ PlotInferCanvas::PlotInferCanvas
     , mMaxVert( 0 )
     , mHaveVertValues( false )
     , mDataThreshold( 0 )
+    // highlight
+    , mHighlightRatio( 0 )
 {
     setBackgroundRole( QPalette::Base );
     setAutoFillBackground( true );
@@ -109,6 +111,26 @@ void PlotInferCanvas::drawGridLinesV()
         }
     }
 
+    painter.end();
+}
+
+
+//!************************************************************************
+//! Draw the highlight area for the events window
+//!
+//! @returns nothing
+//!************************************************************************
+void PlotInferCanvas::drawHighlightEventsWindow()
+{
+    QPainter painter( &mPicture );
+
+    mPen = QPen( Qt::NoPen );
+    mBrush = QBrush( QColor( 23, 23, 23 ), Qt::SolidPattern );
+    painter.setPen( mPen );
+    painter.setBrush( mBrush );
+    int dataW = mSizeW - LEFT_PLOT_SPACE - RIGHT_PLOT_SPACE;
+    painter.drawRect( QRect( QPoint( mSizeW - RIGHT_PLOT_SPACE - dataW * mHighlightRatio, TOP_PLOT_SPACE ),
+                             QPoint( mSizeW - RIGHT_PLOT_SPACE, mSizeH - BOTTOM_PLOT_SPACE ) ) );
     painter.end();
 }
 
@@ -344,6 +366,25 @@ std::vector<double>& PlotInferCanvas::getDataVector()
 
 
 //!************************************************************************
+//! Overwrite the maximum vertical value (user action)
+//!
+//! @returns nothing
+//!************************************************************************
+void PlotInferCanvas::overwriteVerticalMax
+    (
+    const double aVerticalMax           //!< max value for vertical axis
+    )
+{
+    if( aVerticalMax > 0 )
+    {
+        mMaxVert = aVerticalMax;
+    }
+
+    mHaveVertValues = true;
+}
+
+
+//!************************************************************************
 //! Paint event
 //! Called whenever something is painted.
 //!
@@ -365,7 +406,21 @@ void PlotInferCanvas::paintEvent
     painter.setPen( mPen );
     painter.setBrush( mBrush );
     painter.drawRect( QRect( 0, 0, mSizeW - 1, mSizeH - 1 ) );
+
+    mBrush = QBrush( Qt::NoBrush );
+    painter.setBrush( mBrush );
+
     mPicture = QPicture();
+
+    if( mHighlightRatio > 0 )
+    {
+        // highlight for the events window
+        drawHighlightEventsWindow();
+        painter.drawPicture( 0, 0, mPicture );
+    }
+
+    mBrush = QBrush( Qt::NoBrush );
+    painter.setBrush( mBrush );
 
     // outer rectangle
     drawOuterRectangle();
@@ -417,6 +472,23 @@ void PlotInferCanvas::resizeEvent
     mSizeW = width();
     mSizeH = height();
     QWidget::resizeEvent( aEvent );
+}
+
+
+//!************************************************************************
+//! Set the highlight ratio of the plot
+//!
+//! @returns nothing
+//!************************************************************************
+void PlotInferCanvas::setHighlightRatio
+    (
+    const double aRatio         //!< highlight ratio
+    )
+{
+    if( aRatio >= 0 && aRatio <= 1 )
+    {
+        mHighlightRatio = aRatio;
+    }
 }
 
 

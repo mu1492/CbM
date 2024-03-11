@@ -519,7 +519,17 @@ class SpectralViewer : public QMainWindow
             );
 
 #if BUILD_CUDA
+        void handleChangedTrtEventsWin
+            (
+            int aValue      //!< value
+            );
+
         void handleChangedTrtInferZloss
+            (
+            double aValue   //!< value
+            );
+
+        void handleChangedTrtUpperRange
             (
             double aValue   //!< value
             );
@@ -775,14 +785,17 @@ class SpectralViewer : public QMainWindow
         Ui::TrtSettingsDialog*          mTrtSettingsUi;         //!< TensorRT settings UI
         QDialog                         mTrtSettingsDlg;        //!< TensorRT settings dialog
 
-        PlotInferCanvas*                mTrtInfer01Canvas;     //!< inference plot canvas for 1 second
-        uint16_t                        mTrtInfer01Size;       //!< number of elements for 1s spacing
+        PlotInferCanvas*                mTrtInfer01Canvas;      //!< inference plot canvas for 1 second
+        uint16_t                        mTrtInfer01Size;        //!< number of elements for 1s spacing
 
-        PlotInferCanvas*                mTrtInfer10Canvas;     //!< inference plot canvas for avg. 10 seconds
-        uint16_t                        mTrtInfer10Size;       //!< number of elements for 10s spacing
+        PlotInferCanvas*                mTrtInfer10Canvas;      //!< inference plot canvas for avg. 10 seconds
+        uint16_t                        mTrtInfer10Size;        //!< number of elements for 10s spacing
 
-        PlotInferCanvas*                mTrtInfer60Canvas;     //!< inference plot canvas for avg. 60 second
-        uint16_t                        mTrtInfer60Size;       //!< number of elements for 10s spacing
+        PlotInferCanvas*                mTrtInfer60Canvas;      //!< inference plot canvas for avg. 60 second
+        uint16_t                        mTrtInfer60Size;        //!< number of elements for 10s spacing
+
+        double                          mTrtUpperRange;         //!< Inference upper range for vertical axis
+        uint16_t                        mTrtWindowLength;       //!< Nr of most recent seconds for inference events
 #endif
 
         QLabel                          mSpsStatusbarLabel;     //!< SPS label on status bar

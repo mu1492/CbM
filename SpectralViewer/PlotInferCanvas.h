@@ -67,6 +67,16 @@ class PlotInferCanvas : public QWidget
 
         std::vector<double>& getDataVector();
 
+        void overwriteVerticalMax
+            (
+            const double aVerticalMax           //!< max value for vertical axis
+            );
+
+        void setHighlightRatio
+            (
+            const double aRatio                 //!< highlight ratio
+            );
+
         void setHorizontalMax
             (
             const double aHorizontalMax         //!< max value for horizontal axis
@@ -96,6 +106,8 @@ class PlotInferCanvas : public QWidget
     private:
         void drawGridLinesH();
         void drawGridLinesV();
+
+        void drawHighlightEventsWindow();
 
         void drawOuterRectangle();
 
@@ -133,6 +145,8 @@ class PlotInferCanvas : public QWidget
         double              mDataThreshold;         //!< threshold value
 
         std::vector<double> mDataVector;            //!< inference data
+
+        double              mHighlightRatio;        //!< highlighted part of the plot
 };
 
 #endif // PlotInferCanvas_h

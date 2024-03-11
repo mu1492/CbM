@@ -101,6 +101,8 @@ SpectralViewer::SpectralViewer
     , mTrtInfer10Size( 360 ) // 1h
     , mTrtInfer60Canvas( nullptr )
     , mTrtInfer60Size( 300 ) // 5h
+    , mTrtUpperRange( 0 )
+    , mTrtWindowLength( mTrtInfer01Size / 20 )
 #endif
     // paint&draw
     , mCbmCanvas( nullptr )
@@ -597,15 +599,17 @@ bool SpectralViewer::changeAccelRange
 
     //!************************************************************************
     //! Check for the number of inference losses above the threshold.
-    //! Focus is on the array of 1 second inferences.
+    //! It applies to last mTrtWindowLength entries from the array of 1 second
+    //! inferences.
     //!
     //! @returns The number of events above threshold
     //!************************************************************************
     uint16_t SpectralViewer::checkInferEventsAboveThd()
     {
         uint16_t eventsCount = 0;
+        size_t vecLen = mTrtInfer01Canvas->getDataVector().size();
 
-        for( size_t i = 0; i < mTrtInfer01Canvas->getDataVector().size(); i++ )
+        for( size_t i = vecLen - mTrtWindowLength; i < vecLen; i++ )
         {
             if( mTrtInfer01Canvas->getDataVector().at( i ) >= mTrt.lossThd.zAxis )
             {
@@ -1550,6 +1554,31 @@ uint16_t SpectralViewer::getDaqDelayUs()
 
 #if BUILD_CUDA
     //!************************************************************************
+    //! Handle for changing the number of most recent seconds for the inference
+    //! events window
+    //! It determines the events counter for most recent calculated loss values.
+    //!
+    //! @returns nothing
+    //!************************************************************************
+    /* slot */ void SpectralViewer::handleChangedTrtEventsWin
+        (
+        int aValue      //!< value
+        )
+    {
+        if( aValue >= 1 && aValue <= mTrtInfer01Size )
+        {
+            mTrtWindowLength = aValue;
+
+            if( mTrtInfer01Canvas )
+            {
+                mTrtInfer01Canvas->setHighlightRatio( static_cast<double>( mTrtWindowLength ) / mTrtInfer01Size );
+                mTrtInfer01Canvas->update();
+            }
+        }
+    }
+
+
+    //!************************************************************************
     //! Handle for changing the TensorRT inference loss threshold for Z-axis
     //!
     //! @returns nothing
@@ -1577,6 +1606,30 @@ uint16_t SpectralViewer::getDaqDelayUs()
         {
             mTrtInfer60Canvas->setThreshold( mTrt.lossThd.zAxis );
             mTrtInfer60Canvas->update();
+        }
+    }
+
+
+    //!************************************************************************
+    //! Handle for changing the maximum value on the inference loss plot
+    //! It can be used to overwrite the existing maximum for the vertical axis.
+    //!
+    //! @returns nothing
+    //!************************************************************************
+    /* slot */ void SpectralViewer::handleChangedTrtUpperRange
+        (
+        double aValue   //!< value
+        )
+    {
+        if( aValue > 0 )
+        {
+            mTrtUpperRange = aValue;
+
+            if( mTrtInfer01Canvas )
+            {
+                mTrtInfer01Canvas->overwriteVerticalMax( mTrtUpperRange );
+                mTrtInfer01Canvas->update();
+            }
         }
     }
 #endif
@@ -3705,6 +3758,7 @@ void SpectralViewer::initPlot3dOptionsControls()
         // elements are 1s apart => 600 * 1s = 10m span
         mTrtInfer01Canvas->getDataVector().resize( mTrtInfer01Size, 0 );
         mTrtInfer01Canvas->setHorizontalMax( mTrtInfer01Size );
+        mTrtInfer01Canvas->setHighlightRatio( static_cast<double>( mTrtWindowLength ) / mTrtInfer01Size );
         mTrtInfer01Canvas->update();
 
         //////////////////////////
@@ -3742,6 +3796,12 @@ void SpectralViewer::initPlot3dOptionsControls()
         /// Common updates
         //////////////////////////
         updateTrtSettingsDialogControls();
+
+        connect( mTrtSettingsUi->UpperRangeSpinBox, SIGNAL( valueChanged(double) ), this, SLOT( handleChangedTrtUpperRange(double) ) );
+
+        mTrtSettingsUi->EventsWinSpinBox->setMinimum( 1 );
+        mTrtSettingsUi->EventsWinSpinBox->setMaximum( mTrtInfer01Size );
+        connect( mTrtSettingsUi->EventsWinSpinBox, SIGNAL( valueChanged(int) ), this, SLOT( handleChangedTrtEventsWin(int) ) );
 
         connect( mTrtSettingsUi->LossThdSpinBox, SIGNAL( valueChanged(double) ), this, SLOT( handleChangedTrtInferZloss(double) ) );
 
@@ -4361,9 +4421,17 @@ void SpectralViewer::runConfiguration()
             itFirst = mTrt.lossHistoryData.zAxis.end() - 1 - vecSize;
             itLast = mTrt.lossHistoryData.zAxis.end() - 1;
             mTrtInfer01Canvas->getDataVector().assign( itFirst, itLast );
-            mTrtInfer01Canvas->setVerticalMax( *std::max_element( std::begin( mTrtInfer01Canvas->getDataVector() ),
-                                                                  std::end( mTrtInfer01Canvas->getDataVector() ),
-                                                                  compareInferFnc ) );
+            double crtMax = *std::max_element( std::end( mTrtInfer01Canvas->getDataVector() ) - mTrtWindowLength,
+                                               std::end( mTrtInfer01Canvas->getDataVector() ),
+                                               compareInferFnc );
+
+            if( crtMax > mTrtUpperRange )
+            {
+                mTrtUpperRange = crtMax;
+                mTrtSettingsUi->UpperRangeSpinBox->setValue( mTrtUpperRange );
+            }
+
+            mTrtInfer01Canvas->setVerticalMax( crtMax );
             mTrtInfer01Canvas->update();
             mTrtSettingsUi->Loss01Value->setText( QString::number( mTrtInfer01Canvas->getDataVector().at( vecSize - 1 ), 'f', 2 ) + " " );
 
@@ -5075,8 +5143,13 @@ void SpectralViewer::updatePlotsVerticalMaxTransient()
         // inference status
         mTrtSettingsUi->StatusValue->setText( mTrt.isEnabled ? "ENABLED" : "DISABLED" );
 
+        // upper range
+        mTrtSettingsUi->UpperRangeSpinBox->setValue( mTrtUpperRange );
+
         // inference loss threshold
-        mTrtSettingsUi->LossThdSpinBox->setValue( mTrt.lossThd.zAxis );
+        mTrtSettingsUi->LossThdSpinBox->setValue( mTrt.lossThd.zAxis );        
+        // inference window length
+        mTrtSettingsUi->EventsWinSpinBox->setValue( mTrtWindowLength );
 
         // full log
         mTrtSettingsUi->LogWidget->clear();
